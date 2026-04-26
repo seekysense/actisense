@@ -1,0 +1,83 @@
+id: cam_entrance_01
+name: Entrance
+area: entrance
+axis_ip: 10.46.67.9
+axis_event_id: ACC_Motion_B8A44FCA85BE_0
+preprocessing:
+  roi:
+    enabled: true
+    zones:
+    - name: bench
+      polygon:
+      - - 748
+        - 122
+      - - 658
+        - 466
+      - - 1130
+        - 872
+      - - 1460
+        - 374
+      - - 942
+        - 52
+      - - 922
+        - 162
+      - - 748
+        - 126
+      - - 748
+        - 126
+      rotation: 32
+      perspective_quad:
+      - - 658
+        - 52
+      - - 1460
+        - 52
+      - - 1448
+        - 898
+      - - 610
+        - 592
+    - name: door
+      polygon:
+      - - 238
+        - 628
+      - - 658
+        - 458
+      - - 678
+        - 0
+      - - 84
+        - 2
+      - - 100
+        - 404
+      - - 232
+        - 630
+      - - 232
+        - 630
+      rotation: -19
+      perspective_quad:
+      - - 84
+        - 0
+      - - 678
+        - 0
+      - - 664
+        - 530
+      - - 84
+        - 630
+    - name: concierge_desk
+      polygon:
+      - - 718
+        - 146
+      - - 12
+        - 442
+      - - 300
+        - 1076
+      - - 1068
+        - 1074
+      - - 1492
+        - 558
+      - - 724
+        - 146
+      - - 724
+        - 146
+      rotation: -31
+native_analytics:
+  people_counting: true
+  cross_line: false

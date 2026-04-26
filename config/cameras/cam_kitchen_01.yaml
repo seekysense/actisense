@@ -1,0 +1,131 @@
+id: cam_kitchen_01
+name: Ager Patris Lounge
+area: kitchen
+axis_ip: 10.46.67.5
+axis_event_id: cabinet
+preprocessing:
+  roi:
+    enabled: true
+    zones:
+    - name: windows
+      polygon:
+      - - 12
+        - 232
+      - - 608
+        - 24
+      - - 642
+        - 186
+      - - 58
+        - 434
+      - - 8
+        - 234
+      - - 12
+        - 232
+      - - 12
+        - 232
+      exclude: true
+    - name: tables
+      polygon:
+      - - 62
+        - 442
+      - - 258
+        - 932
+      - - 514
+        - 652
+      - - 740
+        - 540
+      - - 660
+        - 174
+      - - 62
+        - 440
+      - - 62
+        - 440
+      rotation: -23
+      perspective_quad:
+      - - 34
+        - 72
+      - - 754
+        - 30
+      - - 876
+        - 1008
+      - - 62
+        - 932
+    - name: counter
+      polygon:
+      - - 222
+        - 870
+      - - 300
+        - 626
+      - - 692
+        - 438
+      - - 802
+        - 574
+      - - 1448
+        - 868
+      - - 1438
+        - 1076
+      - - 364
+        - 1074
+      - - 258
+        - 936
+      - - 258
+        - 938
+      - - 258
+        - 938
+      - - 258
+        - 938
+      rotation: 42
+    - name: cabinet
+      polygon:
+      - - 806
+        - 640
+      - - 740
+        - 614
+      - - 654
+        - 130
+      - - 1006
+        - 118
+      - - 1086
+        - 750
+      - - 804
+        - 642
+      - - 804
+        - 642
+      perspective_quad:
+      - - 654
+        - 118
+      - - 1086
+        - 118
+      - - 1160
+        - 746
+      - - 730
+        - 592
+    - name: coffee_machine
+      polygon:
+      - - 1442
+        - 924
+      - - 1486
+        - 152
+      - - 1904
+        - 252
+      - - 1760
+        - 1074
+      - - 1474
+        - 1066
+      - - 1440
+        - 922
+      - - 1440
+        - 922
+      rotation: 11
+      perspective_quad:
+      - - 1446
+        - 186
+      - - 1860
+        - 192
+      - - 1904
+        - 1074
+      - - 1350
+        - 1070
+native_analytics:
+  people_counting: true
+  cross_line: false

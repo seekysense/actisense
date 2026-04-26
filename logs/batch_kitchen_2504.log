@@ -1,0 +1,76 @@
+12:05:00  INFO      Telemetry: Phoenix (http://localhost:6006) project=ActiSense
+12:05:01  INFO      Config: site=tc  areas=['kitchen', 'lobby', 'entrance']
+12:05:01  INFO      Camera=cam_kitchen_01  area=kitchen (Ager Patris Lounge)
+12:05:01  INFO      Warming signal cache from http://10.40.65.53:8090 ...
+2026-04-26 12:05:02 [info     ] signal_cache_warmed            count=17
+12:05:02  INFO      Signal cache ready (18 signals)
+2026-04-26 12:05:02 [info     ] lancedb_initialized            path=/Users/andrea/Projects/Infinite/VisionSemanticAgent/data/lancedb
+12:05:02  INFO      LanceDB ready at /Users/andrea/Projects/Infinite/VisionSemanticAgent/data/lancedb
+12:05:02  INFO      LLM: https://api-gb10.elettra.ai/v1 / Galene/VLM-Thinking
+12:05:02  INFO      Listing recordings: event_id=cabinet  from=2026-04-25  to=2026-04-25
+2026-04-26 12:05:02 [info     ] axis_list_recordings           end='2026-04-25 23:59:59+00:00' event_id=cabinet start='2026-04-25 00:00:00+00:00'
+12:05:02  INFO      HTTP Request: GET http://10.46.67.5/axis-cgi/record/list.cgi?eventid=cabinet&starttime=2026-04-25T00%3A00%3A00.000Z&stoptime=2026-04-25T23%3A59%3A59.000Z "HTTP/1.1 401 Unauthorized"
+12:05:03  INFO      HTTP Request: GET http://10.46.67.5/axis-cgi/record/list.cgi?eventid=cabinet&starttime=2026-04-25T00%3A00%3A00.000Z&stoptime=2026-04-25T23%3A59%3A59.000Z "HTTP/1.1 200 OK"
+2026-04-26 12:05:03 [info     ] axis_recordings_found          count=1 event_id=cabinet
+12:05:03  INFO      Found 1 recording(s)
+12:05:03  INFO      Signals: ['person_on_ground', 'smoking', 'unattended_luggage', 'person_count_stat', 'working_with_pc', 'fire_smoke', 'cleaning_setup', 'eating_drinking', 'cabinet_opened']
+12:05:03  INFO      Zone groups: {'tables': ['person_on_ground', 'smoking', 'unattended_luggage', 'person_count_stat', 'working_with_pc', 'fire_smoke', 'cleaning_setup', 'eating_drinking'], 'concierge_desk': ['person_on_ground', 'smoking', 'working_with_pc', 'fire_smoke', 'cleaning_setup', 'eating_drinking'], 'sofa_1': ['person_on_ground', 'smoking', 'unattended_luggage', 'working_with_pc', 'fire_smoke', 'cleaning_setup', 'eating_drinking'], 'bench': ['person_on_ground', 'smoking', 'unattended_luggage', 'person_count_stat', 'working_with_pc', 'eating_drinking'], 'counter': ['smoking', 'working_with_pc', 'fire_smoke', 'cleaning_setup', 'eating_drinking'], 'sofa_2': ['smoking', 'unattended_luggage', 'working_with_pc', 'fire_smoke', 'cleaning_setup', 'eating_drinking'], 'armchair': ['smoking', 'unattended_luggage', 'working_with_pc', 'fire_smoke', 'eating_drinking'], 'door': ['unattended_luggage'], 'coffee_machine': ['fire_smoke'], 'cabinet': ['fire_smoke', 'cabinet_opened']}
+12:05:03  INFO      [1/1] 20260425_220753_971D_B8A44FC6820B  (2026-04-25T20:07:53.005274Z → 2026-04-25T20:09:08.160416Z)
+12:05:03  INFO        Downloading ...
+2026-04-26 12:05:03 [info     ] axis_download_start            dest=/tmp/vsa_clips/20260425_220753_971D_B8A44FC6820B.mp4 recording_id=20260425_220753_971D_B8A44FC6820B
+12:05:04  INFO      HTTP Request: GET http://10.46.67.5/axis-cgi/record/export/exportrecording.cgi?schemaversion=1&recordingid=20260425_220753_971D_B8A44FC6820B&diskid=SD_DISK&exportformat=mp4 "HTTP/1.1 200 OK"
+2026-04-26 12:05:06 [info     ] axis_fps_done                  path=/tmp/vsa_clips/20260425_220753_971D_B8A44FC6820B.mp4 target_fps=4
+2026-04-26 12:05:06 [info     ] axis_download_complete         recording_id=20260425_220753_971D_B8A44FC6820B size_kb=3626.2
+12:05:06  INFO        Downloaded: 20260425_220753_971D_B8A44FC6820B.mp4  (3626.2 KB)
+2026-04-26 12:05:29 [debug    ] frames_deduped                 discarded=142 kept=8 threshold=0.05 zone=tables
+12:05:29  INFO        Zone=tables           frames=8  windows=1/1  duration=75.2s
+2026-04-26 12:05:30 [debug    ] evaluate_windowed              area_id=kitchen camera_id=cam_kitchen_01 frames_per_window=8 windows=1
+12:05:30  INFO        eating_drinking         score=+0.0690  thr=0.10  below    zone=tables
+12:05:30  INFO        working_with_pc         score=+0.0068  thr=0.10  below    zone=tables
+12:05:30  INFO        person_on_ground        score=-0.0011  thr=0.10  below    zone=tables
+12:05:30  INFO        unattended_luggage      score=-0.0035  thr=0.10  below    zone=tables
+12:05:30  INFO        fire_smoke              score=-0.0348  thr=0.10  below    zone=tables
+12:05:30  INFO        smoking                 score=-0.0477  thr=0.20  below    zone=tables
+12:05:30  INFO        cleaning_setup          score=-0.0506  thr=0.15  below    zone=tables
+2026-04-26 12:05:30 [warning  ] zone_not_found_skip            camera_id=cam_kitchen_01 zone_name=concierge_desk
+12:05:30  WARNING     Nessun frame estratto (zona=concierge_desk)
+2026-04-26 12:05:30 [warning  ] zone_not_found_skip            camera_id=cam_kitchen_01 zone_name=sofa_1
+12:05:30  WARNING     Nessun frame estratto (zona=sofa_1)
+2026-04-26 12:05:30 [warning  ] zone_not_found_skip            camera_id=cam_kitchen_01 zone_name=bench
+12:05:30  WARNING     Nessun frame estratto (zona=bench)
+2026-04-26 12:05:51 [debug    ] frames_deduped                 discarded=142 kept=8 threshold=0.05 zone=counter
+12:05:51  INFO        Zone=counter          frames=8  windows=1/1  duration=75.2s
+2026-04-26 12:05:52 [debug    ] evaluate_windowed              area_id=kitchen camera_id=cam_kitchen_01 frames_per_window=8 windows=1
+12:05:52  INFO        eating_drinking         score=+0.0759  thr=0.10  below    zone=counter
+12:05:52  INFO        working_with_pc         score=+0.0339  thr=0.10  below    zone=counter
+12:05:52  INFO        fire_smoke              score=-0.0025  thr=0.10  below    zone=counter
+12:05:52  INFO        cleaning_setup          score=-0.0060  thr=0.15  below    zone=counter
+12:05:52  INFO        smoking                 score=-0.0383  thr=0.20  below    zone=counter
+2026-04-26 12:05:52 [warning  ] zone_not_found_skip            camera_id=cam_kitchen_01 zone_name=sofa_2
+12:05:52  WARNING     Nessun frame estratto (zona=sofa_2)
+2026-04-26 12:05:52 [warning  ] zone_not_found_skip            camera_id=cam_kitchen_01 zone_name=armchair
+12:05:52  WARNING     Nessun frame estratto (zona=armchair)
+2026-04-26 12:05:52 [warning  ] zone_not_found_skip            camera_id=cam_kitchen_01 zone_name=door
+12:05:52  WARNING     Nessun frame estratto (zona=door)
+2026-04-26 12:06:12 [debug    ] frames_deduped                 discarded=142 kept=8 threshold=0.05 zone=coffee_machine
+12:06:12  INFO        Zone=coffee_machine   frames=8  windows=1/1  duration=75.2s
+2026-04-26 12:06:13 [debug    ] evaluate_windowed              area_id=kitchen camera_id=cam_kitchen_01 frames_per_window=8 windows=1
+12:06:13  INFO        fire_smoke              score=-0.0074  thr=0.10  below    zone=coffee_machine
+2026-04-26 12:06:31 [debug    ] frames_deduped                 discarded=142 kept=8 threshold=0.05 zone=cabinet
+12:06:31  INFO        Zone=cabinet          frames=8  windows=1/1  duration=75.2s
+2026-04-26 12:06:32 [debug    ] evaluate_windowed              area_id=kitchen camera_id=cam_kitchen_01 frames_per_window=8 windows=1
+12:06:32  INFO        cabinet_opened          score=+0.0939  thr=0.15  below    zone=cabinet
+12:06:32  INFO        fire_smoke              score=-0.0118  thr=0.10  below    zone=cabinet
+
+========================================================================
+  BATCH SUMMARY
+========================================================================
+  Recordings : 1
+  Events     : 0
+  Errors     : 0
+
+  [OK ] 20260425_220753_971D_B8A44FC6820B
+        frames=8  duration=75.2s
+        no threshold exceeded  (eating_drinking=+0.069, working_with_pc=+0.007, person_on_ground=-0.001, unattended_luggage=-0.004 ...)
+
+========================================================================

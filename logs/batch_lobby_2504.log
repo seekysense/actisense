@@ -1,0 +1,15 @@
+12:05:00  INFO      Telemetry: Phoenix (http://localhost:6006) project=ActiSense
+12:05:01  INFO      Config: site=tc  areas=['kitchen', 'lobby', 'entrance']
+12:05:01  INFO      Camera=cam_lobby_01  area=lobby (Lobby Entrance)
+12:05:01  INFO      Warming signal cache from http://10.40.65.53:8090 ...
+2026-04-26 12:05:02 [info     ] signal_cache_warmed            count=17
+12:05:02  INFO      Signal cache ready (18 signals)
+2026-04-26 12:05:02 [info     ] lancedb_initialized            path=/Users/andrea/Projects/Infinite/VisionSemanticAgent/data/lancedb
+12:05:02  INFO      LanceDB ready at /Users/andrea/Projects/Infinite/VisionSemanticAgent/data/lancedb
+12:05:02  INFO      LLM: https://api-gb10.elettra.ai/v1 / Galene/VLM-Thinking
+12:05:02  INFO      Listing recordings: event_id=ACC_Motion_B8A44FC674CC_0  from=2026-04-25  to=2026-04-25
+2026-04-26 12:05:02 [info     ] axis_list_recordings           end='2026-04-25 23:59:59+00:00' event_id=ACC_Motion_B8A44FC674CC_0 start='2026-04-25 00:00:00+00:00'
+12:05:02  INFO      HTTP Request: GET http://10.46.67.6/axis-cgi/record/list.cgi?eventid=ACC_Motion_B8A44FC674CC_0&starttime=2026-04-25T00%3A00%3A00.000Z&stoptime=2026-04-25T23%3A59%3A59.000Z "HTTP/1.1 401 Unauthorized"
+12:05:02  INFO      HTTP Request: GET http://10.46.67.6/axis-cgi/record/list.cgi?eventid=ACC_Motion_B8A44FC674CC_0&starttime=2026-04-25T00%3A00%3A00.000Z&stoptime=2026-04-25T23%3A59%3A59.000Z "HTTP/1.1 200 OK"
+2026-04-26 12:05:02 [info     ] axis_recordings_found          count=0 event_id=ACC_Motion_B8A44FC674CC_0
+12:05:02  WARNING   Nessuna registrazione trovata

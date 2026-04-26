@@ -1,0 +1,219 @@
+11:59:29  INFO      Telemetry: Phoenix (http://localhost:6006) project=ActiSense
+11:59:30  INFO      Config: site=tc  areas=['kitchen', 'lobby']
+11:59:30  INFO      Camera=cam_lobby_01  area=lobby (Lobby Entrance)
+11:59:30  INFO      Warming signal cache from http://10.40.65.53:8090 ...
+2026-04-25 11:59:34 [info     ] signal_cache_warmed            count=10
+11:59:34  INFO      Signal cache ready (11 signals)
+2026-04-25 11:59:34 [info     ] lancedb_initialized            path=/Users/andrea/Projects/Infinite/VisionSemanticAgent/data/lancedb
+11:59:34  INFO      LanceDB ready at /Users/andrea/Projects/Infinite/VisionSemanticAgent/data/lancedb
+11:59:34  INFO      LLM: https://api-gb10.elettra.ai/v1 / Galene/VLM-Thinking
+11:59:34  INFO      Listing recordings: event_id=ACC_Motion_B8A44FC674CC_0  from=2026-04-22  to=2026-04-24
+2026-04-25 11:59:34 [info     ] axis_list_recordings           end='2026-04-24 23:59:59+00:00' event_id=ACC_Motion_B8A44FC674CC_0 start='2026-04-22 00:00:00+00:00'
+11:59:34  INFO      HTTP Request: GET http://10.46.67.6/axis-cgi/record/list.cgi?eventid=ACC_Motion_B8A44FC674CC_0&starttime=2026-04-22T00%3A00%3A00.000Z&stoptime=2026-04-24T23%3A59%3A59.000Z "HTTP/1.1 401 Unauthorized"
+11:59:35  INFO      HTTP Request: GET http://10.46.67.6/axis-cgi/record/list.cgi?eventid=ACC_Motion_B8A44FC674CC_0&starttime=2026-04-22T00%3A00%3A00.000Z&stoptime=2026-04-24T23%3A59%3A59.000Z "HTTP/1.1 200 OK"
+2026-04-25 11:59:35 [info     ] axis_recordings_found          count=27 event_id=ACC_Motion_B8A44FC674CC_0
+11:59:35  INFO      Found 27 recording(s)
+11:59:35  INFO      Signals: ['person_on_ground', 'smoking', 'unattended_luggage', 'person_count_stat', 'working_with_pc', 'fire_smoke', 'cleaning_setup', 'eating_drinking']
+11:59:35  INFO      Zone groups: {'tables': ['person_on_ground', 'smoking', 'unattended_luggage', 'person_count_stat', 'working_with_pc', 'fire_smoke', 'cleaning_setup', 'eating_drinking'], 'counter': ['smoking', 'working_with_pc', 'fire_smoke', 'cleaning_setup', 'eating_drinking'], 'sofa_1': ['smoking', 'unattended_luggage', 'working_with_pc', 'fire_smoke', 'cleaning_setup', 'eating_drinking'], 'sofa_2': ['smoking', 'unattended_luggage', 'working_with_pc', 'fire_smoke', 'cleaning_setup', 'eating_drinking'], 'armchair': ['smoking', 'unattended_luggage', 'working_with_pc', 'fire_smoke', 'eating_drinking'], 'coffee_machine': ['fire_smoke'], 'cabinet': ['fire_smoke']}
+11:59:35  INFO      [1/27] 20260424_174350_47FD_B8A44FC674CC  (2026-04-24T15:43:50.481645Z → 2026-04-24T15:44:49.366974Z)
+11:59:35  INFO        Downloading ...
+2026-04-25 11:59:35 [info     ] axis_download_start            dest=/tmp/vsa_clips/20260424_174350_47FD_B8A44FC674CC.mp4 recording_id=20260424_174350_47FD_B8A44FC674CC
+11:59:35  INFO      HTTP Request: GET http://10.46.67.6/axis-cgi/record/export/exportrecording.cgi?schemaversion=1&recordingid=20260424_174350_47FD_B8A44FC674CC&diskid=SD_DISK&exportformat=mp4 "HTTP/1.1 200 OK"
+2026-04-25 11:59:37 [info     ] axis_fps_done                  path=/tmp/vsa_clips/20260424_174350_47FD_B8A44FC674CC.mp4 target_fps=4
+2026-04-25 11:59:37 [info     ] axis_download_complete         recording_id=20260424_174350_47FD_B8A44FC674CC size_kb=2730.2
+11:59:37  INFO        Downloaded: 20260424_174350_47FD_B8A44FC674CC.mp4  (2730.2 KB)
+2026-04-25 11:59:37 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=tables
+11:59:37  WARNING     Nessun frame estratto (zona=tables)
+2026-04-25 11:59:37 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=counter
+11:59:37  WARNING     Nessun frame estratto (zona=counter)
+2026-04-25 11:59:52 [debug    ] frames_deduped                 discarded=110 kept=8 threshold=0.05 zone=sofa_1
+11:59:52  INFO        Zone=sofa_1           frames=8  windows=1/1  duration=59.0s
+2026-04-25 12:00:04 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:00:04  INFO        eating_drinking         score=+0.0265  thr=0.10  below    zone=sofa_1
+12:00:04  INFO        unattended_luggage      score=+0.0116  thr=0.10  below    zone=sofa_1
+12:00:04  INFO        fire_smoke              score=+0.0039  thr=0.10  below    zone=sofa_1
+12:00:04  INFO        working_with_pc         score=+0.0021  thr=0.10  below    zone=sofa_1
+12:00:04  INFO        cleaning_setup          score=-0.0044  thr=0.15  below    zone=sofa_1
+12:00:04  INFO        smoking                 score=-0.0774  thr=0.20  below    zone=sofa_1
+2026-04-25 12:00:17 [debug    ] frames_deduped                 discarded=110 kept=8 threshold=0.05 zone=sofa_2
+12:00:17  INFO        Zone=sofa_2           frames=8  windows=1/1  duration=59.0s
+2026-04-25 12:00:17 [warning  ] embedding_connection_retry     error='Server disconnected' url=http://10.40.65.53:8090/v1/video_embeddings
+2026-04-25 12:00:30 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:00:30  INFO        unattended_luggage      score=+0.0382  thr=0.10  below    zone=sofa_2
+12:00:30  INFO        eating_drinking         score=+0.0254  thr=0.10  below    zone=sofa_2
+12:00:30  INFO        working_with_pc         score=+0.0126  thr=0.10  below    zone=sofa_2
+12:00:30  INFO        cleaning_setup          score=+0.0079  thr=0.15  below    zone=sofa_2
+12:00:30  INFO        fire_smoke              score=-0.0062  thr=0.10  below    zone=sofa_2
+12:00:30  INFO        smoking                 score=-0.0584  thr=0.20  below    zone=sofa_2
+2026-04-25 12:00:45 [debug    ] frames_deduped                 discarded=110 kept=8 threshold=0.05 zone=armchair
+12:00:45  INFO        Zone=armchair         frames=8  windows=1/1  duration=59.0s
+2026-04-25 12:00:45 [warning  ] embedding_connection_retry     error='Server disconnected' url=http://10.40.65.53:8090/v1/video_embeddings
+2026-04-25 12:01:05 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:01:05  INFO        unattended_luggage      score=+0.0349  thr=0.10  below    zone=armchair
+12:01:05  INFO        eating_drinking         score=+0.0280  thr=0.10  below    zone=armchair
+12:01:05  INFO        working_with_pc         score=-0.0041  thr=0.10  below    zone=armchair
+12:01:05  INFO        fire_smoke              score=-0.0154  thr=0.10  below    zone=armchair
+12:01:05  INFO        smoking                 score=-0.0456  thr=0.20  below    zone=armchair
+2026-04-25 12:01:05 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=coffee_machine
+12:01:05  WARNING     Nessun frame estratto (zona=coffee_machine)
+2026-04-25 12:01:05 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=cabinet
+12:01:05  WARNING     Nessun frame estratto (zona=cabinet)
+12:01:05  INFO      [2/27] 20260424_173758_74BA_B8A44FC674CC  (2026-04-24T15:37:58.845774Z → 2026-04-24T15:39:01.320031Z)
+12:01:05  INFO        Downloading ...
+2026-04-25 12:01:05 [info     ] axis_download_start            dest=/tmp/vsa_clips/20260424_173758_74BA_B8A44FC674CC.mp4 recording_id=20260424_173758_74BA_B8A44FC674CC
+12:01:06  INFO      HTTP Request: GET http://10.46.67.6/axis-cgi/record/export/exportrecording.cgi?schemaversion=1&recordingid=20260424_173758_74BA_B8A44FC674CC&diskid=SD_DISK&exportformat=mp4 "HTTP/1.1 200 OK"
+2026-04-25 12:01:07 [info     ] axis_fps_done                  path=/tmp/vsa_clips/20260424_173758_74BA_B8A44FC674CC.mp4 target_fps=4
+2026-04-25 12:01:07 [info     ] axis_download_complete         recording_id=20260424_173758_74BA_B8A44FC674CC size_kb=3709.5
+12:01:07  INFO        Downloaded: 20260424_173758_74BA_B8A44FC674CC.mp4  (3709.5 KB)
+2026-04-25 12:01:07 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=tables
+12:01:07  WARNING     Nessun frame estratto (zona=tables)
+2026-04-25 12:01:07 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=counter
+12:01:07  WARNING     Nessun frame estratto (zona=counter)
+2026-04-25 12:01:24 [debug    ] frames_deduped                 discarded=117 kept=8 threshold=0.05 zone=sofa_1
+12:01:24  INFO        Zone=sofa_1           frames=8  windows=1/1  duration=62.5s
+2026-04-25 12:01:42 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:01:42  INFO        eating_drinking         score=+0.0209  thr=0.10  below    zone=sofa_1
+12:01:42  INFO        unattended_luggage      score=+0.0059  thr=0.10  below    zone=sofa_1
+12:01:42  INFO        fire_smoke              score=+0.0023  thr=0.10  below    zone=sofa_1
+12:01:42  INFO        working_with_pc         score=-0.0057  thr=0.10  below    zone=sofa_1
+12:01:42  INFO        cleaning_setup          score=-0.0147  thr=0.15  below    zone=sofa_1
+12:01:42  INFO        smoking                 score=-0.0850  thr=0.20  below    zone=sofa_1
+2026-04-25 12:01:59 [debug    ] frames_deduped                 discarded=117 kept=8 threshold=0.05 zone=sofa_2
+12:01:59  INFO        Zone=sofa_2           frames=8  windows=1/1  duration=62.5s
+2026-04-25 12:02:19 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:02:19  INFO        unattended_luggage      score=+0.0341  thr=0.10  below    zone=sofa_2
+12:02:19  INFO        eating_drinking         score=+0.0242  thr=0.10  below    zone=sofa_2
+12:02:19  INFO        working_with_pc         score=+0.0106  thr=0.10  below    zone=sofa_2
+12:02:19  INFO        cleaning_setup          score=+0.0065  thr=0.15  below    zone=sofa_2
+12:02:19  INFO        fire_smoke              score=-0.0058  thr=0.10  below    zone=sofa_2
+12:02:19  INFO        smoking                 score=-0.0587  thr=0.20  below    zone=sofa_2
+2026-04-25 12:02:37 [debug    ] frames_deduped                 discarded=117 kept=8 threshold=0.05 zone=armchair
+12:02:37  INFO        Zone=armchair         frames=8  windows=1/1  duration=62.5s
+2026-04-25 12:02:48 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:02:48  INFO        unattended_luggage      score=+0.0308  thr=0.10  below    zone=armchair
+12:02:48  INFO        eating_drinking         score=+0.0304  thr=0.10  below    zone=armchair
+12:02:48  INFO        working_with_pc         score=-0.0040  thr=0.10  below    zone=armchair
+12:02:48  INFO        fire_smoke              score=-0.0173  thr=0.10  below    zone=armchair
+12:02:48  INFO        smoking                 score=-0.0459  thr=0.20  below    zone=armchair
+2026-04-25 12:02:48 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=coffee_machine
+12:02:48  WARNING     Nessun frame estratto (zona=coffee_machine)
+2026-04-25 12:02:48 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=cabinet
+12:02:48  WARNING     Nessun frame estratto (zona=cabinet)
+12:02:48  INFO      [3/27] 20260424_162817_173D_B8A44FC674CC  (2026-04-24T14:28:17.856134Z → 2026-04-24T14:29:21.446946Z)
+12:02:48  INFO        Downloading ...
+2026-04-25 12:02:48 [info     ] axis_download_start            dest=/tmp/vsa_clips/20260424_162817_173D_B8A44FC674CC.mp4 recording_id=20260424_162817_173D_B8A44FC674CC
+12:02:48  INFO      HTTP Request: GET http://10.46.67.6/axis-cgi/record/export/exportrecording.cgi?schemaversion=1&recordingid=20260424_162817_173D_B8A44FC674CC&diskid=SD_DISK&exportformat=mp4 "HTTP/1.1 200 OK"
+2026-04-25 12:02:51 [info     ] axis_fps_done                  path=/tmp/vsa_clips/20260424_162817_173D_B8A44FC674CC.mp4 target_fps=4
+2026-04-25 12:02:51 [info     ] axis_download_complete         recording_id=20260424_162817_173D_B8A44FC674CC size_kb=5883.6
+12:02:51  INFO        Downloaded: 20260424_162817_173D_B8A44FC674CC.mp4  (5883.6 KB)
+2026-04-25 12:02:51 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=tables
+12:02:51  WARNING     Nessun frame estratto (zona=tables)
+2026-04-25 12:02:51 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=counter
+12:02:51  WARNING     Nessun frame estratto (zona=counter)
+2026-04-25 12:03:11 [debug    ] frames_deduped                 discarded=119 kept=8 threshold=0.05 zone=sofa_1
+12:03:11  INFO        Zone=sofa_1           frames=8  windows=1/1  duration=63.5s
+2026-04-25 12:03:22 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:03:22  INFO        eating_drinking         score=+0.0224  thr=0.10  below    zone=sofa_1
+12:03:22  INFO        unattended_luggage      score=+0.0039  thr=0.10  below    zone=sofa_1
+12:03:22  INFO        fire_smoke              score=-0.0027  thr=0.10  below    zone=sofa_1
+12:03:22  INFO        working_with_pc         score=-0.0100  thr=0.10  below    zone=sofa_1
+12:03:22  INFO        cleaning_setup          score=-0.0159  thr=0.15  below    zone=sofa_1
+12:03:22  INFO        smoking                 score=-0.0871  thr=0.20  below    zone=sofa_1
+2026-04-25 12:03:44 [debug    ] frames_deduped                 discarded=119 kept=8 threshold=0.05 zone=sofa_2
+12:03:44  INFO        Zone=sofa_2           frames=8  windows=1/1  duration=63.5s
+2026-04-25 12:03:55 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:03:55  INFO        unattended_luggage      score=+0.0418  thr=0.10  below    zone=sofa_2
+12:03:55  INFO        eating_drinking         score=+0.0338  thr=0.10  below    zone=sofa_2
+12:03:55  INFO        working_with_pc         score=+0.0148  thr=0.10  below    zone=sofa_2
+12:03:55  INFO        cleaning_setup          score=+0.0139  thr=0.15  below    zone=sofa_2
+12:03:55  INFO        fire_smoke              score=+0.0040  thr=0.10  below    zone=sofa_2
+12:03:55  INFO        smoking                 score=-0.0531  thr=0.20  below    zone=sofa_2
+2026-04-25 12:04:16 [debug    ] frames_deduped                 discarded=119 kept=8 threshold=0.05 zone=armchair
+12:04:16  INFO        Zone=armchair         frames=8  windows=1/1  duration=63.5s
+2026-04-25 12:04:27 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:04:27  INFO        unattended_luggage      score=+0.0387  thr=0.10  below    zone=armchair
+12:04:27  INFO        eating_drinking         score=+0.0329  thr=0.10  below    zone=armchair
+12:04:27  INFO        working_with_pc         score=-0.0012  thr=0.10  below    zone=armchair
+12:04:27  INFO        fire_smoke              score=-0.0144  thr=0.10  below    zone=armchair
+12:04:27  INFO        smoking                 score=-0.0426  thr=0.20  below    zone=armchair
+2026-04-25 12:04:27 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=coffee_machine
+12:04:27  WARNING     Nessun frame estratto (zona=coffee_machine)
+2026-04-25 12:04:27 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=cabinet
+12:04:27  WARNING     Nessun frame estratto (zona=cabinet)
+12:04:27  INFO      [4/27] 20260424_152810_DD2C_B8A44FC674CC  (2026-04-24T13:28:10.577661Z → 2026-04-24T13:29:08.745202Z)
+12:04:27  INFO        Downloading ...
+2026-04-25 12:04:27 [info     ] axis_download_start            dest=/tmp/vsa_clips/20260424_152810_DD2C_B8A44FC674CC.mp4 recording_id=20260424_152810_DD2C_B8A44FC674CC
+12:04:27  INFO      HTTP Request: GET http://10.46.67.6/axis-cgi/record/export/exportrecording.cgi?schemaversion=1&recordingid=20260424_152810_DD2C_B8A44FC674CC&diskid=SD_DISK&exportformat=mp4 "HTTP/1.1 200 OK"
+2026-04-25 12:04:29 [info     ] axis_fps_done                  path=/tmp/vsa_clips/20260424_152810_DD2C_B8A44FC674CC.mp4 target_fps=4
+2026-04-25 12:04:29 [info     ] axis_download_complete         recording_id=20260424_152810_DD2C_B8A44FC674CC size_kb=3119.3
+12:04:29  INFO        Downloaded: 20260424_152810_DD2C_B8A44FC674CC.mp4  (3119.3 KB)
+2026-04-25 12:04:29 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=tables
+12:04:29  WARNING     Nessun frame estratto (zona=tables)
+2026-04-25 12:04:29 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=counter
+12:04:29  WARNING     Nessun frame estratto (zona=counter)
+2026-04-25 12:04:45 [debug    ] frames_deduped                 discarded=108 kept=8 threshold=0.05 zone=sofa_1
+12:04:45  INFO        Zone=sofa_1           frames=8  windows=1/1  duration=58.2s
+2026-04-25 12:04:56 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:04:56  INFO        eating_drinking         score=+0.0265  thr=0.10  below    zone=sofa_1
+12:04:56  INFO        unattended_luggage      score=+0.0066  thr=0.10  below    zone=sofa_1
+12:04:56  INFO        fire_smoke              score=-0.0019  thr=0.10  below    zone=sofa_1
+12:04:56  INFO        working_with_pc         score=-0.0022  thr=0.10  below    zone=sofa_1
+12:04:56  INFO        cleaning_setup          score=-0.0058  thr=0.15  below    zone=sofa_1
+12:04:56  INFO        smoking                 score=-0.0776  thr=0.20  below    zone=sofa_1
+2026-04-25 12:05:10 [debug    ] frames_deduped                 discarded=108 kept=8 threshold=0.05 zone=sofa_2
+12:05:10  INFO        Zone=sofa_2           frames=8  windows=1/1  duration=58.2s
+2026-04-25 12:05:10 [warning  ] embedding_connection_retry     error='Server disconnected' url=http://10.40.65.53:8090/v1/video_embeddings
+2026-04-25 12:05:23 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:05:23  INFO        unattended_luggage      score=+0.0420  thr=0.10  below    zone=sofa_2
+12:05:23  INFO        eating_drinking         score=+0.0357  thr=0.10  below    zone=sofa_2
+12:05:23  INFO        cleaning_setup          score=+0.0172  thr=0.15  below    zone=sofa_2
+12:05:23  INFO        working_with_pc         score=+0.0162  thr=0.10  below    zone=sofa_2
+12:05:23  INFO        fire_smoke              score=+0.0042  thr=0.10  below    zone=sofa_2
+12:05:23  INFO        smoking                 score=-0.0479  thr=0.20  below    zone=sofa_2
+2026-04-25 12:05:39 [debug    ] frames_deduped                 discarded=108 kept=8 threshold=0.05 zone=armchair
+12:05:39  INFO        Zone=armchair         frames=8  windows=1/1  duration=58.2s
+2026-04-25 12:05:50 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:05:50  INFO        unattended_luggage      score=+0.0363  thr=0.10  below    zone=armchair
+12:05:50  INFO        eating_drinking         score=+0.0242  thr=0.10  below    zone=armchair
+12:05:50  INFO        working_with_pc         score=-0.0085  thr=0.10  below    zone=armchair
+12:05:50  INFO        fire_smoke              score=-0.0189  thr=0.10  below    zone=armchair
+12:05:50  INFO        smoking                 score=-0.0541  thr=0.20  below    zone=armchair
+2026-04-25 12:05:50 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=coffee_machine
+12:05:50  WARNING     Nessun frame estratto (zona=coffee_machine)
+2026-04-25 12:05:50 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=cabinet
+12:05:50  WARNING     Nessun frame estratto (zona=cabinet)
+12:05:50  INFO      [5/27] 20260424_151553_CAFC_B8A44FC674CC  (2026-04-24T13:15:53.450268Z → 2026-04-24T13:16:42.645488Z)
+12:05:50  INFO        Downloading ...
+2026-04-25 12:05:50 [info     ] axis_download_start            dest=/tmp/vsa_clips/20260424_151553_CAFC_B8A44FC674CC.mp4 recording_id=20260424_151553_CAFC_B8A44FC674CC
+12:05:50  INFO      HTTP Request: GET http://10.46.67.6/axis-cgi/record/export/exportrecording.cgi?schemaversion=1&recordingid=20260424_151553_CAFC_B8A44FC674CC&diskid=SD_DISK&exportformat=mp4 "HTTP/1.1 401 Unauthorized"
+12:05:51  INFO      HTTP Request: GET http://10.46.67.6/axis-cgi/record/export/exportrecording.cgi?schemaversion=1&recordingid=20260424_151553_CAFC_B8A44FC674CC&diskid=SD_DISK&exportformat=mp4 "HTTP/1.1 200 OK"
+2026-04-25 12:05:52 [info     ] axis_fps_done                  path=/tmp/vsa_clips/20260424_151553_CAFC_B8A44FC674CC.mp4 target_fps=4
+2026-04-25 12:05:52 [info     ] axis_download_complete         recording_id=20260424_151553_CAFC_B8A44FC674CC size_kb=3500.1
+12:05:52  INFO        Downloaded: 20260424_151553_CAFC_B8A44FC674CC.mp4  (3500.1 KB)
+2026-04-25 12:05:52 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=tables
+12:05:52  WARNING     Nessun frame estratto (zona=tables)
+2026-04-25 12:05:52 [warning  ] zone_not_found_skip            camera_id=cam_lobby_01 zone_name=counter
+12:05:52  WARNING     Nessun frame estratto (zona=counter)
+2026-04-25 12:06:03 [debug    ] frames_deduped                 discarded=90 kept=8 threshold=0.05 zone=sofa_1
+12:06:03  INFO        Zone=sofa_1           frames=8  windows=1/1  duration=49.2s
+2026-04-25 12:06:03 [warning  ] embedding_connection_retry     error='Server disconnected' url=http://10.40.65.53:8090/v1/video_embeddings
+2026-04-25 12:06:16 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:06:16  INFO        eating_drinking         score=+0.0188  thr=0.10  below    zone=sofa_1
+12:06:16  INFO        unattended_luggage      score=+0.0019  thr=0.10  below    zone=sofa_1
+12:06:16  INFO        fire_smoke              score=-0.0082  thr=0.10  below    zone=sofa_1
+12:06:16  INFO        working_with_pc         score=-0.0121  thr=0.10  below    zone=sofa_1
+12:06:16  INFO        cleaning_setup          score=-0.0171  thr=0.15  below    zone=sofa_1
+12:06:16  INFO        smoking                 score=-0.0870  thr=0.20  below    zone=sofa_1
+2026-04-25 12:06:29 [debug    ] frames_deduped                 discarded=90 kept=8 threshold=0.05 zone=sofa_2
+12:06:29  INFO        Zone=sofa_2           frames=8  windows=1/1  duration=49.2s
+2026-04-25 12:06:29 [warning  ] embedding_connection_retry     error='[Errno None] Can not write request body for http://10.40.65.53:8090/v1/video_embeddings' url=http://10.40.65.53:8090/v1/video_embeddings
+2026-04-25 12:06:42 [debug    ] evaluate_windowed              area_id=lobby camera_id=cam_lobby_01 frames_per_window=8 windows=1
+12:06:42  INFO        unattended_luggage      score=+0.0391  thr=0.10  below    zone=sofa_2
+12:06:42  INFO        eating_drinking         score=+0.0270  thr=0.10  below    zone=sofa_2
+12:06:42  INFO        working_with_pc         score=+0.0111  thr=0.10  below    zone=sofa_2
+12:06:42  INFO        cleaning_setup          score=+0.0098  thr=0.15  below    zone=sofa_2
+12:06:42  INFO        fire_smoke              score=-0.0034  thr=0.10  below    zone=sofa_2
+12:06:42  INFO        smoking                 score=-0.0529  thr=0.20  below    zone=sofa_2
+2026-04-25 12:06:56 [debug    ] frames_deduped                 discarded=90 kept=8 threshold=0.05 zone=armchair
+12:06:56  INFO        Zone=armchair         frames=8  windows=1/1  duration=49.2s
+2026-04-25 12:06:56 [warning  ] embedding_connection_retry     error='Server disconnected' url=http://10.40.65.53:8090/v1/video_embeddings

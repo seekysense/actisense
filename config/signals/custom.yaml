@@ -1,0 +1,3 @@
+# Signal personalizzati per Hotel Bellavista
+# Sovrascrivono i preset di hotel.yaml se stesso id
+signals: []

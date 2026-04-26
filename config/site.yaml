@@ -1,0 +1,70 @@
+site:
+  id: tc
+  name: The Castelletto
+  type: hotel
+  signal_library:
+    - config/signals/hotel.yaml
+    - config/signals/custom.yaml
+  alert_cooldown_sec: 300
+
+areas:
+  - id: kitchen
+    name: Ager Patris Lounge
+    type: indoor_public
+    alert_cooldown_sec: 180
+    cameras: [cam_kitchen_01]
+    signals:
+      - id: person_on_ground
+      - id: smoking
+      - id: unattended_luggage
+      - id: person_count_stat
+      - id: working_with_pc
+      - id: fire_smoke
+      - id: cleaning_setup
+      - id: eating_drinking
+      - id: cabinet_opened
+
+  - id: lobby
+    name: Lobby Entrance
+    type: indoor_public
+    alert_cooldown_sec: 180
+    cameras: [cam_lobby_01]
+    signals:
+      - id: person_on_ground
+      - id: smoking
+      - id: unattended_luggage
+      - id: person_count_stat
+      - id: working_with_pc
+      - id: fire_smoke
+      - id: cleaning_setup
+      - id: eating_drinking
+
+  - id: entrance
+    name: Entrance
+    type: indoor_public
+    alert_cooldown_sec: 180
+    cameras: [cam_entrance_01]
+    signals:
+      - id: person_on_ground
+        threshold_override: 0.18
+      - id: smoking
+      - id: unattended_luggage
+        threshold_override: 0.25
+        escalation_llm_override: true
+        llm_prompt_key_override: unattended_bag_entrance
+      - id: person_count_stat
+      - id: working_with_pc
+      - id: fire_smoke
+      - id: cleaning_setup
+      - id: eating_drinking
+      - id: door_open
+        time_filter: {from: "23:00", to: "05:00"}
+        action_override: alarm
+        threshold_override: 0.20
+      - id: person_at_door
+      - id: luggage_arrival
+      - id: concierge_interaction
+      - id: checkin_desk
+      - id: person_waiting_bench
+      - id: tailgating
+      - id: door_forced

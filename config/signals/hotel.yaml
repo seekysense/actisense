@@ -1,0 +1,238 @@
+signals:
+  # Safety signals
+  - id: person_on_ground
+    name: "Man Down"
+    text: "a person collapsed or fallen on the floor, lying flat and motionless, not standing"
+    priority: 1
+    default_threshold: 0.10
+    default_action: alarm
+    escalation_llm: true
+    llm_prompt_key: person_down
+    zone:
+      - tables
+      - concierge_desk
+      - sofa_1
+      - bench
+
+  - id: smoking
+    name: "Smoking Detected"
+    text: "a person holding a cigarette between their fingers, hand raised near their face, thin smoke trail visible"
+    priority: 2
+    default_threshold: 0.20
+    default_action: notify
+    escalation_llm: true
+    llm_prompt_key: smoking_context
+    zone:
+      - tables
+      - counter
+      - sofa_1
+      - sofa_2
+      - armchair
+      - concierge_desk
+      - bench
+
+  - id: fire_smoke
+    name: "Fire/Smoke Detected"
+    text: "visible flames or thick dark smoke in the room, fire burning or smoke cloud rising"
+    priority: 1
+    default_threshold: 0.10
+    default_action: alarm
+    escalation_llm: true
+    llm_prompt_key: fire_smoke_context
+    zone:
+      - coffee_machine
+      - counter
+      - cabinet
+      - tables
+      - sofa_1
+      - sofa_2
+      - armchair
+      - concierge_desk
+
+  - id: unattended_luggage
+    name: "Unattended Luggage"
+    text: "a bag or suitcase left alone on the floor, no person standing next to it"
+    priority: 2
+    default_threshold: 0.10
+    default_action: notify
+    escalation_llm: true
+    llm_prompt_key: unattended_bag
+    zone:
+      - tables
+      - sofa_1
+      - sofa_2
+      - armchair
+      - bench
+      - door
+
+  - id: person_count_stat
+    name: "Person Count"
+    text: "people present in the area, standing or moving"
+    priority: 5
+    default_threshold: 0.40
+    default_action: statistic
+    escalation_llm: false
+    source: native_axis
+    zone:
+      - tables
+      - bench
+
+  - id: unauthorized_area
+    name: "Unauthorized Area"
+    text: "a person standing at or opening a locked storage unit, accessing items inside"
+    priority: 2
+    default_threshold: 0.40
+    default_action: notify
+    escalation_llm: true
+    zone: cabinet
+
+  # Activity signals
+  - id: working_with_pc
+    name: "Working with PC"
+    text: "a person seated on a sofa or at a table, working on a laptop computer with hands on the keyboard"
+    priority: 4
+    default_threshold: 0.10
+    default_action: statistic
+    escalation_llm: false
+    zone:
+      - tables
+      - counter
+      - sofa_1
+      - sofa_2
+      - armchair
+      - concierge_desk
+      - bench
+
+  - id: cleaning_setup
+    name: "Cleaning Setup"
+    text: "a person mopping or sweeping the floor, holding a mop or broom with a bucket nearby"
+    priority: 3
+    default_threshold: 0.15
+    default_action: notify
+    escalation_llm: true
+    zone:
+      - tables
+      - counter
+      - sofa_1
+      - sofa_2
+      - concierge_desk
+
+  - id: eating_drinking
+    name: "Eating/Drinking"
+    text: "a person seated at a table eating food from a plate or drinking from a glass or cup"
+    priority: 3
+    default_threshold: 0.10
+    default_action: statistic
+    escalation_llm: true
+    zone:
+      - tables
+      - counter
+      - sofa_1
+      - sofa_2
+      - armchair
+      - concierge_desk
+      - bench
+
+  # Entrance
+  - id: checkin_desk
+    name: "Check-in at Desk"
+    text: "a person leaning forward with torso bent over a hotel reception counter, both hands resting on the desk surface, upper body inclined close to the front desk"
+    priority: 3
+    default_threshold: 0.08
+    default_action: notify
+    escalation_llm: true
+    llm_prompt_key: checkin_desk_context
+    zone: concierge_desk
+
+  - id: tailgating
+    name: "Tailgating"
+    text: "two people passing through a doorway in immediate close succession, one following directly behind the other without a gap"
+    priority: 2
+    default_threshold: 0.30
+    default_action: notify
+    escalation_llm: true
+    llm_prompt_key: tailgating_context
+    zone: door
+
+  - id: door_forced
+    name: "Forced Entry Attempt"
+    text: "a person pushing or pulling hard on a door that does not open, repeatedly attempting to force entry, body leaning against the door frame"
+    priority: 1
+    default_threshold: 0.20
+    default_action: alarm
+    escalation_llm: true
+    llm_prompt_key: door_forced_context
+    zone: door
+
+  - id: person_at_door
+    name: "Person at Door"
+    text: "a person standing at or passing through a doorway, body framed in the entrance threshold"
+    priority: 5
+    default_threshold: 0.25
+    default_action: statistic
+    escalation_llm: false
+    zone: door
+
+  - id: luggage_arrival
+    name: "Luggage Arrival"
+    text: "a person carrying a travel bag or wheeling a suitcase, luggage clearly visible alongside their body"
+    priority: 4
+    default_threshold: 0.20
+    default_action: statistic
+    escalation_llm: false
+    zone:
+      - door
+      - bench
+      - concierge_desk
+
+  - id: concierge_interaction
+    name: "Concierge Interaction"
+    text: "a person standing or leaning at a reception engaged in a face-to-face interaction"
+    priority: 4
+    default_threshold: 0.15
+    default_action: statistic
+    escalation_llm: false
+    zone: concierge_desk
+
+  - id: person_waiting_bench
+    name: "Person Waiting at Bench"
+    text: "a person seated on a bench or waiting chair, remaining still for an extended time"
+    priority: 5
+    default_threshold: 0.20
+    default_action: statistic
+    escalation_llm: false
+    zone: 
+      - bench
+      - sofa_1
+      - sofa_2
+      - armchair
+
+  - id: door_open
+    name: "Door Open"
+    text: "an entrance door swung fully open with the door panel displaced to the side, the open passageway clearly visible and unobstructed, natural exterior light streaming through the open doorway"
+    priority: 5
+    default_threshold: 0.25
+    default_action: statistic
+    escalation_llm: false
+    zone: door
+
+  # Cabinet
+  - id: cabinet_opened
+    name: "Cabinet Opened"
+    text: "an open cabinet with its door ajar, interior shelves and stored items visible inside"
+    priority: 2
+    default_threshold: 0.15
+    default_action: notify
+    escalation_llm: true
+    llm_prompt_key: cabinet_context
+    zone: cabinet
+
+  - id: cabinet_taken
+    name: "Cabinet Item Taken"
+    text: "a person's hand reaching into an open cabinet and taking or handling items stored inside"
+    priority: 1
+    default_threshold: 0.15
+    default_action: statistic
+    escalation_llm: false
+    llm_prompt_key: cabinet_item_taken_context
+    zone: cabinet

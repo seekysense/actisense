@@ -1,0 +1,61 @@
+id: cam_lobby_01
+name: Lobby Entrance
+area: lobby
+axis_ip: 10.46.67.6
+axis_event_id: ACC_Motion_B8A44FC674CC_0
+preprocessing:
+  roi:
+    enabled: true
+    zones:
+    - name: armchair
+      polygon:
+      - - 228
+        - 1074
+      - - 26
+        - 616
+      - - 310
+        - 520
+      - - 550
+        - 670
+      - - 736
+        - 960
+      - - 702
+        - 1076
+      - - 234
+        - 1076
+      - - 234
+        - 1076
+      rotation: -16.5
+    - name: sofa_1
+      polygon:
+      - - 1016
+        - 852
+      - - 704
+        - 858
+      - - 694
+        - 114
+      - - 1228
+        - 114
+      - - 1184
+        - 682
+      - - 1016
+        - 854
+      - - 1016
+        - 854
+    - name: sofa_2
+      polygon:
+      - - 1030
+        - 1074
+      - - 1034
+        - 258
+      - - 1858
+        - 268
+      - - 1578
+        - 1076
+      - - 1030
+        - 1072
+      - - 1030
+        - 1072
+native_analytics:
+  people_counting: true
+  cross_line: false
