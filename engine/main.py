@@ -73,7 +73,7 @@ def _make_processor(state: _State, embedding_client, router, clip_managers: dict
             for zone_name, signal_pairs in zone_groups.items():
                 frame_set = extract_frames(job.clip_path, camera, cfg,
                                            zone_name=zone_name)
-                if default_frame_set is None:
+                if default_frame_set is None and frame_set.frame_count > 0:
                     default_frame_set = frame_set
                 scored = await state.evaluator.evaluate_windowed(
                     frame_set, embedding_client, job.camera_id,
@@ -223,6 +223,9 @@ async def main(config_path: Path, with_api: bool = False) -> None:
         api_key=os.getenv("LLM_API_KEY", ""),
         model=cfg.llm_vision_model,
         timeout=float(os.getenv("LLM_TIMEOUT", "280")),
+        send_frame_size=int(os.getenv("LLM_FRAME_SIZE_SEND", "336")),
+        send_jpeg_quality=int(os.getenv("LLM_JPEG_QUALITY_SEND", "80")),
+        enable_thinking=cfg.llm_thinking,
     )
 
     # 6. Router + evaluator

@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+from engine.intelligence.llm_vision_client import TemporalContext
 from engine.intelligence.signal_evaluator import ScoredSignal
 from engine.output.alert_dedup import AlertDedup
 
@@ -52,23 +53,31 @@ class ActionRouter:
         self._llm_client     = llm_client
         self._llm_max_calls  = llm_max_calls
 
-    async def _analyze_windowed_llm(self, frame_set: Any, prompt_key: str | None) -> Any:
+    async def _analyze_windowed_llm(
+        self,
+        frame_set: Any,
+        prompt_key: str | None,
+        temporal_context: TemporalContext | None = None,
+    ) -> Any:
         """
         Chiama il LLM su al più llm_max_calls finestre distribuite sul clip.
+        Se temporal_context è fornito, ogni chiamata include frame BEFORE/AFTER
+        per consentire ragionamento sulla dinamica della scena.
         Restituisce il verdetto con confidence più alta; confirmed=True ha priorità.
         """
         windows = frame_set.llm_windows(self._llm_max_calls)
         best = None
         for i, win_frames in enumerate(windows):
-            verdict = await self._llm_client.analyze(win_frames, prompt_key)
+            verdict = await self._llm_client.analyze(win_frames, prompt_key, temporal_context)
             log.debug("llm_window_verdict", window=i + 1, total=len(windows),
-                      confirmed=verdict.confirmed, confidence=round(verdict.confidence, 3))
+                      confirmed=verdict.confirmed, confidence=round(verdict.confidence, 3),
+                      temporal=temporal_context is not None)
             if best is None:
                 best = verdict
             elif verdict.confirmed and not best.confirmed:
-                best = verdict                          # confirmed batte non-confirmed
+                best = verdict
             elif verdict.confirmed == best.confirmed and verdict.confidence > best.confidence:
-                best = verdict                          # stessa classe, confidence più alta
+                best = verdict
         return best
 
     async def route(
@@ -79,6 +88,7 @@ class ActionRouter:
         area_cooldown_sec: int,
         area_config: Any | None = None,
         event_time: datetime | None = None,
+        temporal_context: TemporalContext | None = None,
     ) -> list[ActionResult]:
         """
         Per ogni ScoredSignal:
@@ -166,8 +176,14 @@ class ActionRouter:
                 llm_verdict = None
                 if use_llm and self._llm_client and frame_set:
                     try:
+                        # Usa il contesto temporale solo se il signal lo richiede
+                        signal_ctx = (
+                            temporal_context
+                            if (temporal_context is not None and scored.signal.temporal_context_sec > 0)
+                            else None
+                        )
                         llm_verdict = await self._analyze_windowed_llm(
-                            frame_set, effective_prompt_key
+                            frame_set, effective_prompt_key, signal_ctx
                         )
                         llm_esc = True
                     except Exception as exc:

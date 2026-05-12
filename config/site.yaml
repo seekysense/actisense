@@ -23,6 +23,8 @@ areas:
       - id: cleaning_setup
       - id: eating_drinking
       - id: cabinet_opened
+      - id: cabinet_taken
+      - id: dog_presence
 
   - id: lobby
     name: Lobby Entrance
@@ -38,6 +40,7 @@ areas:
       - id: fire_smoke
       - id: cleaning_setup
       - id: eating_drinking
+      - id: dog_presence
 
   - id: entrance
     name: Entrance
@@ -46,7 +49,6 @@ areas:
     cameras: [cam_entrance_01]
     signals:
       - id: person_on_ground
-        threshold_override: 0.18
       - id: smoking
       - id: unattended_luggage
         threshold_override: 0.25
@@ -68,3 +70,4 @@ areas:
       - id: person_waiting_bench
       - id: tailgating
       - id: door_forced
+      - id: dog_presence

@@ -2,12 +2,13 @@ signals:
   # Safety signals
   - id: person_on_ground
     name: "Man Down"
-    text: "a person collapsed or fallen on the floor, lying flat and motionless, not standing"
+    text: "overhead camera: person lying completely flat on the floor, full body length visible from head to feet, legs fully extended straight, body spread across a large floor area, collapsed and fallen"
     priority: 1
-    default_threshold: 0.10
+    default_threshold: 0.12
     default_action: alarm
     escalation_llm: true
     llm_prompt_key: person_down
+    temporal_context_sec: 3
     zone:
       - tables
       - concierge_desk
@@ -22,6 +23,7 @@ signals:
     default_action: notify
     escalation_llm: true
     llm_prompt_key: smoking_context
+    temporal_context_sec: 2
     zone:
       - tables
       - counter
@@ -57,6 +59,7 @@ signals:
     default_action: notify
     escalation_llm: true
     llm_prompt_key: unattended_bag
+    temporal_context_sec: 5
     zone:
       - tables
       - sofa_1
@@ -87,6 +90,23 @@ signals:
     zone: cabinet
 
   # Activity signals
+  - id: dog_presence
+    name: "Dog Detected"
+    text: "a dog or puppy visible in the area, walking on the floor, sitting, or held by a person, fur and four legs clearly identifiable as a canine"
+    priority: 3
+    default_threshold: 0.09
+    default_action: notify
+    escalation_llm: true
+    llm_prompt_key: dog_presence
+    zone:
+      - tables
+      - sofa_1
+      - sofa_2
+      - armchair
+      - concierge_desk
+      - bench
+      - door
+
   - id: working_with_pc
     name: "Working with PC"
     text: "a person seated on a sofa or at a table, working on a laptop computer with hands on the keyboard"
@@ -152,6 +172,7 @@ signals:
     default_action: notify
     escalation_llm: true
     llm_prompt_key: tailgating_context
+    temporal_context_sec: 3
     zone: door
 
   - id: door_forced
@@ -218,21 +239,23 @@ signals:
 
   # Cabinet
   - id: cabinet_opened
-    name: "Cabinet Opened"
-    text: "an open cabinet with its door ajar, interior shelves and stored items visible inside"
+    name: "Cabinet Interaction"
+    text: "a person standing directly in front of a storage cabinet, hands touching or gripping the door handle or panel, body facing the cabinet at close range, door opening or being pulled open"
     priority: 2
     default_threshold: 0.15
     default_action: notify
     escalation_llm: true
-    llm_prompt_key: cabinet_context
+    llm_prompt_key: cabinet_interaction_context
+    temporal_context_sec: 3
     zone: cabinet
 
   - id: cabinet_taken
     name: "Cabinet Item Taken"
-    text: "a person's hand reaching into an open cabinet and taking or handling items stored inside"
+    text: "a person's hands reaching inside an open cabinet, gripping or removing stored items, objects being extracted and taken away from the cabinet interior"
     priority: 1
     default_threshold: 0.15
-    default_action: statistic
-    escalation_llm: false
+    default_action: notify
+    escalation_llm: true
     llm_prompt_key: cabinet_item_taken_context
+    temporal_context_sec: 4
     zone: cabinet

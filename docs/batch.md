@@ -33,6 +33,12 @@ python scripts/batch_process.py \
     [--no-llm] \
     [--dry-run]
 
+python scripts/batch_process.py  --camera cam_entrance_01 --from 2026-05-04:15.00  --to 2026-05-04:16.00
+python scripts/batch_process.py  --camera cam_lobby_01 --from 2026-05-01  --to 2026-05-03
+python scripts/batch_process.py  --camera cam_kitchen_01 --from 2026-05-01  --to 2026-05-03
+
+
+
 # Oppure con clip già scaricate localmente:
 python scripts/batch_process.py \
     --camera <camera_id> \
@@ -42,8 +48,8 @@ python scripts/batch_process.py \
 | Argomento | Tipo | Default | Descrizione |
 |-----------|------|---------|-------------|
 | `--camera` | string | — | ID camera da `config/site.yaml` (es. `cam_kitchen_01`) |
-| `--from` | YYYY-MM-DD | — | Data di inizio (UTC 00:00:00) |
-| `--to` | YYYY-MM-DD | — | Data di fine (UTC 23:59:59) |
+| `--from` | YYYY-MM-DD o YYYY-MM-DD:HH.MM[.SS] | — | Data/ora di inizio UTC (default 00:00:00) |
+| `--to` | YYYY-MM-DD o YYYY-MM-DD:HH.MM[.SS] | — | Data/ora di fine UTC (default 23:59:59) |
 | `--local-clips-dir` | path | — | Processa clip `.mp4` già presenti in locale (salta download Axis) |
 | `--event-id` | string | valore in `.env` o `cabinet` | Event ID VAPIX da usare se non configurato nel YAML della camera |
 | `--config` | path | `config/site.yaml` | Path alternativo al config file |
@@ -53,6 +59,15 @@ python scripts/batch_process.py \
 ---
 
 ## Esempi pratici
+
+### Importare una fascia oraria specifica
+
+```bash
+python scripts/batch_process.py \
+    --camera cam_entrance_01 \
+    --from 2026-05-04:15.00 \
+    --to   2026-05-04:16.00
+```
 
 ### Importare un singolo giorno
 

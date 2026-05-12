@@ -221,4 +221,5 @@ def load_config(site_yaml_path: Path) -> SiteConfig:
         queue_max_workers=int(os.getenv("QUEUE_MAX_WORKERS", "4")),
         queue_max_depth=int(os.getenv("QUEUE_MAX_DEPTH", "100")),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
+        llm_thinking=os.getenv("LLM_THINKING", "false").lower() == "true",
     )

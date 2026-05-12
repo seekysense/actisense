@@ -63,6 +63,14 @@ class FrameSet:
                 result.append(all_wins[idx])
         return result
 
+    def tail_frames(self, n: int) -> list[str]:
+        """Ultimi n frame LLM del clip — usati come BEFORE context per il recording successivo."""
+        return self.frames_llm[-n:] if self.frames_llm else []
+
+    def head_frames(self, n: int) -> list[str]:
+        """Primi n frame LLM del clip — usati come AFTER context per il recording precedente."""
+        return self.frames_llm[:n] if self.frames_llm else []
+
     def llm_windows(self, max_calls: int) -> list[list[str]]:
         """
         Al più max_calls finestre distribuite uniformemente su frames_llm.

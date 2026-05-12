@@ -186,6 +186,8 @@ async def run_batch(
             api_key=os.getenv("LLM_API_KEY", ""),
             model=cfg.llm_vision_model,
             timeout=float(os.getenv("LLM_TIMEOUT", "280")),
+            send_frame_size=int(os.getenv("LLM_FRAME_SIZE_SEND", "224")),
+            send_jpeg_quality=int(os.getenv("LLM_JPEG_QUALITY_SEND", "50")),
         )
         log.info("LLM: %s / %s", cfg.llm_base_url, cfg.llm_vision_model)
     else:
@@ -264,10 +266,14 @@ async def run_batch(
 
     cooldown = area_cfg.alert_cooldown_sec or cfg.site.alert_cooldown_sec
 
+    from engine.intelligence.llm_vision_client import TemporalContext
+
     # 8. Process each recording
     results: list[RecordingResult] = []
     total_events = 0
     total_errors = 0
+
+    prev_frame_set = None   # tail del recording precedente → BEFORE context
 
     for i, rec in enumerate(recordings, 1):
         log.info("[%d/%d] %s  (%s → %s)",
@@ -312,7 +318,7 @@ async def run_batch(
 
             for zone_nm, signal_pairs in zone_groups.items():
                 frame_set = extract_frames(clip_path, camera, cfg, zone_name=zone_nm)
-                if default_frame_set is None:
+                if default_frame_set is None and frame_set.frame_count > 0:
                     default_frame_set = frame_set
                 if frame_set.frame_count == 0:
                     log.warning("  Nessun frame estratto (zona=%s)", zone_nm or "default")
@@ -352,6 +358,17 @@ async def run_batch(
                 results.append(result)
                 continue
 
+            # Contesto temporale: tail del recording precedente come BEFORE
+            before_frames = prev_frame_set.tail_frames(4) if prev_frame_set else []
+            temporal_ctx: TemporalContext | None = (
+                TemporalContext(
+                    before_frames=before_frames,
+                    after_frames=[],   # non disponibile in modalità sequenziale
+                    context_sec=float(os.getenv("TEMPORAL_CONTEXT_SEC", "3")),
+                )
+                if before_frames else None
+            )
+
             # Instrada azioni (dedup fresco per ogni recording)
             fresh_dedup = AlertDedup()
             router = ActionRouter(
@@ -373,6 +390,7 @@ async def run_batch(
             action_results = await router.route(
                 all_scored, job, default_frame_set, cooldown, area_cfg,
                 event_time=rec_time,
+                temporal_context=temporal_ctx,
             )
             for ar in action_results:
                 result.actions_fired.append({
@@ -392,6 +410,10 @@ async def run_batch(
             total_errors += 1
 
         finally:
+            # Salva il frame_set corrente per il contesto BEFORE del prossimo recording
+            if default_frame_set is not None:
+                prev_frame_set = default_frame_set
+
             # Elimina solo i clip scaricati (non quelli locali)
             if not is_local and clip_path and clip_path.exists():
                 try:
@@ -408,6 +430,33 @@ async def run_batch(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _parse_datetime_arg(value: str, *, end_of_day: bool) -> datetime:
+    """Parse --from / --to values.
+
+    Accepted formats:
+      YYYY-MM-DD             → 00:00:00 (from) or 23:59:59 (to)
+      YYYY-MM-DD:HH.MM       → HH:MM:00
+      YYYY-MM-DD:HH.MM.SS    → HH:MM:SS
+    """
+    if ":" in value:
+        date_part, time_part = value.split(":", 1)
+        time_fields = time_part.split(".")
+        if len(time_fields) == 2:
+            h, m = int(time_fields[0]), int(time_fields[1])
+            s = 0
+        elif len(time_fields) == 3:
+            h, m, s = int(time_fields[0]), int(time_fields[1]), int(time_fields[2])
+        else:
+            raise ValueError(f"Formato ora non valido: '{time_part}' — usa HH.MM o HH.MM.SS")
+        dt = datetime.strptime(date_part, "%Y-%m-%d").replace(
+            hour=h, minute=m, second=s, tzinfo=timezone.utc)
+    else:
+        dt = datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        if end_of_day:
+            dt = dt.replace(hour=23, minute=59, second=59)
+    return dt
+
 
 def _parse_rec_time(time_str: str) -> datetime | None:
     for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S"):
@@ -461,9 +510,9 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--camera", required=True, help="Camera config ID")
     parser.add_argument("--from",   dest="date_from",
-                        help="Start date YYYY-MM-DD (obbligatorio senza --local-clips-dir)")
+                        help="Start datetime: YYYY-MM-DD o YYYY-MM-DD:HH.MM[.SS] (obbligatorio senza --local-clips-dir)")
     parser.add_argument("--to",     dest="date_to",
-                        help="End date YYYY-MM-DD (obbligatorio senza --local-clips-dir)")
+                        help="End datetime:   YYYY-MM-DD o YYYY-MM-DD:HH.MM[.SS] (obbligatorio senza --local-clips-dir)")
     parser.add_argument("--local-clips-dir", type=Path, default=None,
                         help="Processa clip .mp4 già scaricate (salta download Axis)")
     parser.add_argument("--event-id",   default=None)
@@ -494,10 +543,8 @@ def main() -> None:
             print("ERROR: --from e --to obbligatori senza --local-clips-dir")
             sys.exit(1)
         try:
-            date_from = datetime.strptime(args.date_from, "%Y-%m-%d").replace(
-                hour=0, tzinfo=timezone.utc)
-            date_to = datetime.strptime(args.date_to, "%Y-%m-%d").replace(
-                hour=23, minute=59, second=59, tzinfo=timezone.utc)
+            date_from = _parse_datetime_arg(args.date_from, end_of_day=False)
+            date_to   = _parse_datetime_arg(args.date_to,   end_of_day=True)
         except ValueError as exc:
             print(f"Date parse error: {exc}")
             sys.exit(1)

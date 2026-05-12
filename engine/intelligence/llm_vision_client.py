@@ -1,17 +1,29 @@
 """
 Client HTTP per il servizio LLM vision (OpenAI-compatible).
-Invia max 4 frame JPEG base64 con prompt dal catalogo.
+Supporta due modalità:
+  - Standard: invia max 4 frame JPEG base64 con prompt dal catalogo.
+  - Temporale: invia frame etichettati in sezioni BEFORE / DETECTION / AFTER
+    per consentire all'LLM di ragionare sulla dinamica della scena nel tempo.
+
+Ogni frame viene ricompresso a una dimensione ridotta prima dell'invio
+(LLM_FRAME_SIZE_SEND × LLM_JPEG_QUALITY_SEND) per rispettare finestre di
+contesto limitate (es. 12k token). Default: 224px quality 50.
+
 Restituisce LLMVerdict(confirmed, description, confidence).
 Non solleva mai eccezioni — errori restituiti come LLMVerdict negativo.
-Su HTTP 500 ritenta con la metà dei frame (auto-riduzione).
+Su HTTP 500 ritenta con la metà dei frame correnti (auto-riduzione).
 """
 from __future__ import annotations
 
+import base64
 import json
+import re
 import time
 from dataclasses import dataclass
 
 import aiohttp
+import cv2
+import numpy as np
 
 from engine.config.prompts import get_prompt
 from engine.telemetry import trace_llm
@@ -23,7 +35,20 @@ except ImportError:
     import logging
     log = logging.getLogger(__name__)  # type: ignore
 
-_MAX_FRAMES = 4
+_MAX_FRAMES_SIMPLE   = 5   # frame della finestra corrente senza contesto temporale
+_MAX_FRAMES_TEMPORAL = 3   # frame della finestra corrente in modalità temporale
+_MAX_CONTEXT_FRAMES  = 2   # frame per sezione BEFORE e AFTER
+
+_DEFAULT_SEND_SIZE    = 336  # px — dimensione invio (override: LLM_FRAME_SIZE_SEND)
+_DEFAULT_SEND_QUALITY = 80   # JPEG quality invio (override: LLM_JPEG_QUALITY_SEND)
+
+
+@dataclass
+class TemporalContext:
+    """Frame di contesto prima e dopo la finestra di rilevazione."""
+    before_frames: list[str]   # base64 JPEG, LLM size
+    after_frames:  list[str]   # base64 JPEG, LLM size
+    context_sec:   float       # secondi di contesto (usato nel testo del prompt)
 
 
 @dataclass
@@ -49,6 +74,33 @@ def _unavailable_verdict(model: str, latency_ms: float) -> LLMVerdict:
     )
 
 
+def _temporal_preamble(context_sec: float, has_before: bool, has_after: bool) -> str:
+    """Testo che descrive all'LLM la struttura temporale del payload."""
+    sections = []
+    if has_before:
+        sections.append(f"BEFORE ({context_sec:.0f}s before detection)")
+    sections.append("DETECTION WINDOW")
+    if has_after:
+        sections.append(f"AFTER ({context_sec:.0f}s after detection)")
+
+    return (
+        f"The frames below are labeled in chronological order across {len(sections)} sections: "
+        + ", then ".join(sections) + ".\n"
+        "Analyze the FULL temporal sequence — focus on what CHANGES between sections, "
+        "not just what is visible in a single moment. "
+        "A transient posture (person bends briefly and stands back up) is very different "
+        "from a sustained state (person remains in the same position across all sections)."
+    )
+
+
+def _count_images(content: list[dict]) -> int:
+    return sum(1 for item in content if item.get("type") == "image_url")
+
+
+def _image_block(frame_b64: str) -> dict:
+    return {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{frame_b64}"}}
+
+
 class LLMVisionClient:
     def __init__(
         self,
@@ -56,37 +108,115 @@ class LLMVisionClient:
         api_key: str,
         model: str,
         timeout: float = 280.0,
+        send_frame_size: int = _DEFAULT_SEND_SIZE,
+        send_jpeg_quality: int = _DEFAULT_SEND_QUALITY,
+        enable_thinking: bool = False,
     ) -> None:
-        self._base_url = base_url.rstrip("/")
-        self._api_key = api_key
-        self._model = model
-        self._timeout = timeout
+        self._base_url          = base_url.rstrip("/")
+        self._api_key           = api_key
+        self._model             = model
+        self._timeout           = timeout
+        self._send_frame_size   = send_frame_size
+        self._send_jpeg_quality = send_jpeg_quality
+        self._enable_thinking   = enable_thinking
 
-    def _select_frames(self, frames: list[str], n: int = _MAX_FRAMES) -> list[str]:
-        """Uniformly sample up to n frames from the input list."""
+    def _compress_frame(self, b64_str: str) -> str:
+        """
+        Ricomprime un frame base64 JPEG alla dimensione di invio configurata.
+        Riduce drasticamente il numero di token occupati dall'immagine.
+        """
+        try:
+            raw = base64.b64decode(b64_str)
+            arr = np.frombuffer(raw, dtype=np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if img is None:
+                return b64_str
+            sz = self._send_frame_size
+            resized = cv2.resize(img, (sz, sz), interpolation=cv2.INTER_AREA)
+            _, buf = cv2.imencode(
+                ".jpg", resized,
+                [cv2.IMWRITE_JPEG_QUALITY, self._send_jpeg_quality],
+            )
+            return base64.b64encode(buf.tobytes()).decode()
+        except Exception:
+            return b64_str
+
+    def _select_frames(self, frames: list[str], n: int = _MAX_FRAMES_SIMPLE) -> list[str]:
+        """Uniformly sample up to n frames, then compress each for sending."""
+        if not frames:
+            return []
+        if n <= 1:
+            return [self._compress_frame(frames[-1])]
         if len(frames) <= n:
-            return list(frames)
-        step = (len(frames) - 1) / (n - 1)
-        indices = [round(i * step) for i in range(n)]
-        return [frames[i] for i in indices]
+            selected = list(frames)
+        else:
+            step = (len(frames) - 1) / (n - 1)
+            indices = [round(i * step) for i in range(n)]
+            selected = [frames[i] for i in indices]
+        return [self._compress_frame(f) for f in selected]
 
-    async def _call_openai(self, frames: list[str], prompt: str) -> str:
-        """POST /chat/completions and return the text of the first choice."""
+    def _build_content(
+        self,
+        current_frames: list[str],
+        prompt: str,
+        temporal_context: TemporalContext | None,
+    ) -> list[dict]:
+        """
+        Costruisce il content array per l'API OpenAI-compatible.
+        Usa un singolo blocco testo iniziale seguito da tutte le immagini in sequenza
+        (formato compatibile con tutte le implementazioni OpenAI-compatible).
+        In modalità temporale il testo descrive quante immagini appartengono a ogni sezione.
+        """
+        if temporal_context is None:
+            content: list[dict] = [{"type": "text", "text": prompt}]
+            for f in current_frames:
+                content.append(_image_block(f))
+            return content
+
+        before = self._select_frames(temporal_context.before_frames, _MAX_CONTEXT_FRAMES)
+        after  = self._select_frames(temporal_context.after_frames,  _MAX_CONTEXT_FRAMES)
+        csec   = temporal_context.context_sec
+
+        # Descrivi la struttura nel testo: il modello sa quante immagini per sezione
+        sections_desc = []
+        if before:
+            sections_desc.append(
+                f"- First {len(before)} image(s): BEFORE section (~{csec:.0f}s before detection)"
+            )
+        sections_desc.append(
+            f"- Next {len(current_frames)} image(s): DETECTION WINDOW"
+        )
+        if after:
+            sections_desc.append(
+                f"- Last {len(after)} image(s): AFTER section (~{csec:.0f}s after detection)"
+            )
+
+        preamble = _temporal_preamble(csec, bool(before), bool(after))
+        image_map = "Image sequence:\n" + "\n".join(sections_desc)
+        full_text = preamble + "\n\n" + image_map + "\n\n" + prompt
+
+        content: list[dict] = [{"type": "text", "text": full_text}]
+        for f in before:
+            content.append(_image_block(f))
+        for f in current_frames:
+            content.append(_image_block(f))
+        for f in after:
+            content.append(_image_block(f))
+
+        return content
+
+    async def _call_openai(self, content: list[dict]) -> str:
+        """POST /chat/completions e restituisce il testo della prima scelta."""
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
         }
-        content: list[dict] = [{"type": "text", "text": prompt}]
-        for frame in frames:
-            content.append({
-                "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{frame}"},
-            })
-        payload = {
+        payload: dict = {
             "model": self._model,
             "messages": [{"role": "user", "content": content}],
             "temperature": 0.1,
-            "max_tokens": 256,
+            "max_tokens": 1024,
+            "extra_body": {"enable_thinking": self._enable_thinking},
         }
         timeout = aiohttp.ClientTimeout(total=self._timeout)
         async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -97,20 +227,41 @@ class LLMVisionClient:
             ) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
-                return data["choices"][0]["message"]["content"]
+                msg = data["choices"][0]["message"]
+                # Thinking models may set content=null and put the answer in reasoning
+                result = msg.get("content") or msg.get("reasoning") or ""
+                return result
 
     def _parse_verdict(self, raw: str, model: str, latency: float) -> LLMVerdict:
         """
-        Parse JSON from LLM response. Handles markdown code fences.
+        Parse JSON from LLM response. Handles thinking models that output reasoning
+        text before the JSON answer — searches for the last {...} block in the response.
         Never raises — returns confirmed=False on any parse error.
         """
+        if raw is None:
+            return LLMVerdict(
+                confirmed=False, description="LLM returned None content",
+                confidence=0.0, raw_response="", model_used=model, latency_ms=latency,
+            )
         try:
             text = raw.strip()
+
+            # Strip markdown code fence if present
             if text.startswith("```"):
                 lines = text.splitlines()
                 end = next((i for i, l in enumerate(lines[1:], 1) if l.startswith("```")), len(lines))
                 text = "\n".join(lines[1:end])
-            data = json.loads(text)
+
+            # Try direct parse first
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError:
+                # Thinking models output reasoning before JSON — find the last {...} block
+                matches = list(re.finditer(r'\{[^{}]*"confirmed"[^{}]*\}', text, re.DOTALL))
+                if not matches:
+                    raise
+                data = json.loads(matches[-1].group())
+
             return LLMVerdict(
                 confirmed=bool(data.get("confirmed", False)),
                 description=str(data.get("description", "")),
@@ -122,9 +273,9 @@ class LLMVisionClient:
         except Exception:
             return LLMVerdict(
                 confirmed=False,
-                description=(str(raw)[:200] if raw is not None else "LLM returned None content"),
+                description=str(raw)[:200],
                 confidence=0.0,
-                raw_response=str(raw) if raw is not None else "",
+                raw_response=str(raw),
                 model_used=model,
                 latency_ms=latency,
             )
@@ -133,26 +284,37 @@ class LLMVisionClient:
         self,
         frames_b64: list[str],
         prompt_key: str | None,
+        temporal_context: TemporalContext | None = None,
     ) -> LLMVerdict:
         """
-        Analyze video frames with LLM vision.
-        Auto-reduces frame count on HTTP 500 (payload too large).
+        Analizza frame video con LLM vision.
+        Se temporal_context è fornito, il payload include sezioni BEFORE/AFTER
+        etichettate per consentire ragionamento sulla dinamica della scena.
+        Auto-riduce i frame correnti su HTTP 500 (payload troppo grande).
         """
-        frames = self._select_frames(frames_b64)
+        max_n = _MAX_FRAMES_TEMPORAL if temporal_context else _MAX_FRAMES_SIMPLE
+        current_frames = self._select_frames(frames_b64, max_n)
         prompt = get_prompt(prompt_key)
         t0 = time.monotonic()
 
         async with trace_llm(
             prompt_key=prompt_key,
             model=self._model,
-            frames_sent=len(frames),
+            frames_sent=len(current_frames),
         ) as span_data:
-            while frames:
+            while current_frames:
+                content = self._build_content(current_frames, prompt, temporal_context)
+                total_images = _count_images(content)
                 try:
-                    raw = await self._call_openai(frames, prompt)
+                    raw = await self._call_openai(content)
                     latency = (time.monotonic() - t0) * 1000
-                    log.info("llm_analysis_done", model=self._model,
-                             frames_sent=len(frames), latency_ms=round(latency))
+                    log.info(
+                        "llm_analysis_done",
+                        model=self._model,
+                        frames_sent=total_images,
+                        temporal=temporal_context is not None,
+                        latency_ms=round(latency),
+                    )
                     verdict = self._parse_verdict(raw, self._model, latency)
                     span_data["output"] = {
                         "confirmed":   verdict.confirmed,
@@ -162,10 +324,10 @@ class LLMVisionClient:
                     return verdict
 
                 except aiohttp.ClientResponseError as exc:
-                    if exc.status == 500 and len(frames) > 1:
-                        frames = frames[:max(1, len(frames) // 2)]
-                        log.warning("llm_500_reducing_frames", frames_left=len(frames))
-                        span_data["frames_sent"] = len(frames)
+                    if exc.status == 500 and len(current_frames) > 1:
+                        current_frames = current_frames[:max(1, len(current_frames) // 2)]
+                        log.warning("llm_500_reducing_frames", frames_left=len(current_frames))
+                        span_data["frames_sent"] = len(current_frames)
                         continue
                     latency = (time.monotonic() - t0) * 1000
                     log.error("llm_http_error", status=exc.status, error=str(exc))

@@ -13,3 +13,4 @@ data/
 .emb-env/
 embedder/
 video-test/
+logs/

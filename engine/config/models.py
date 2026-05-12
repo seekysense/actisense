@@ -21,8 +21,9 @@ class Signal(BaseModel):
     llm_prompt_key: str | None = None
     source: Literal["embedder", "native_axis"] = "embedder"
     cooldown_sec: int = 300
-    time_filter: dict | None = None  # {"from": "HH:MM", "to": "HH:MM"}
-    zone: list[str] | None = None    # zone ROI (stringa singola o lista)
+    time_filter: dict | None = None       # {"from": "HH:MM", "to": "HH:MM"}
+    zone: list[str] | None = None         # zone ROI (stringa singola o lista)
+    temporal_context_sec: int = 0         # secondi di contesto prima/dopo per LLM (0 = disabilitato)
 
     @field_validator("zone", mode="before")
     @classmethod
@@ -119,6 +120,7 @@ class SiteConfig(BaseModel):
     queue_max_workers: int
     queue_max_depth: int
     log_level: str
+    llm_thinking: bool          # enable_thinking passato a extra_body
 
     def cameras_for_area(self, area_id: str) -> list[Camera]:
         """Restituisce Camera objects per le cam associate all'area."""
