@@ -64,7 +64,11 @@ async def signal_cache(cfg):
     from engine.embedding.client import EmbeddingClient
     from engine.config.signal_cache import SignalCache
 
-    client = EmbeddingClient(cfg.embedding_service_url)
+    client = EmbeddingClient(
+        cfg.embedding_base_url,
+        model=cfg.embedding_model,
+        api_key=cfg.embedding_api_key,
+    )
     try:
         ok = await asyncio.wait_for(client.health_check(), timeout=5.0)
     except Exception:

@@ -222,7 +222,7 @@ async def test_action_router_cooldown(tmp_path, aiohttp_server) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 07 — LLM non disponibile → alert inviato comunque — PRD §8.2
+# Test 07 — LLM richiesto ma non disponibile → fail-closed: evento NON inviato
 # ---------------------------------------------------------------------------
 
 async def test_action_router_llm_degraded(tmp_path, aiohttp_server) -> None:
@@ -254,10 +254,10 @@ async def test_action_router_llm_degraded(tmp_path, aiohttp_server) -> None:
 
     results = await router.route([scored], job, make_frame_set(), 300, area)
 
-    assert results[0].fired is True
-    assert results[0].llm_escalation is False   # LLM fallito, no contributo
-    assert len(received) == 1
-    assert received[0].get("llm_verdict") is None
+    # Fail-closed: LLM required but unavailable → event suppressed
+    assert results[0].fired is False
+    assert results[0].llm_escalation is False
+    assert len(received) == 0
 
 
 # ---------------------------------------------------------------------------

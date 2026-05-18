@@ -49,7 +49,9 @@ async def test_pipeline_local_video(tmp_path, cfg, aiohttp_server) -> None:
     Simula il flusso completo usando video locale invece di clip VAPIX.
     Richiede embedding service.
     """
-    embedding_client = EmbeddingClient(cfg.embedding_service_url)
+    embedding_client = EmbeddingClient(
+        cfg.embedding_base_url, model=cfg.embedding_model, api_key=cfg.embedding_api_key
+    )
     if not await embedding_client.health_check():
         pytest.skip("Embedding service non disponibile")
 
@@ -169,7 +171,9 @@ async def test_embedding_service_down(tmp_path) -> None:
 # ---------------------------------------------------------------------------
 
 async def test_pipeline_locker_video(tmp_path, cfg) -> None:
-    embedding_client = EmbeddingClient(cfg.embedding_service_url)
+    embedding_client = EmbeddingClient(
+        cfg.embedding_base_url, model=cfg.embedding_model, api_key=cfg.embedding_api_key
+    )
     if not await embedding_client.health_check():
         pytest.skip("Embedding service non disponibile")
 
@@ -209,7 +213,9 @@ def test_configure_logging_info() -> None:
 
 async def test_health_checker_structure(cfg) -> None:
     from engine.intelligence.llm_vision_client import LLMVisionClient
-    embedding_client = EmbeddingClient(cfg.embedding_service_url)
+    embedding_client = EmbeddingClient(
+        cfg.embedding_base_url, model=cfg.embedding_model, api_key=cfg.embedding_api_key
+    )
     llm_client = LLMVisionClient(
         base_url=cfg.llm_base_url,
         api_key="",

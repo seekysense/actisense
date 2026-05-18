@@ -130,28 +130,34 @@ Only respond with valid JSON.""",
 
     # ------------------------------------------------------------------
     # cabinet_interaction — used by cabinet_opened signal
+    # Camera: side/frontal view at medium height, person typically back to camera.
+    # Cabinet: tall glass-panel honesty bar with dark metal frame and wooden shelves.
+    # Scene note: large decorative glass globe pendant lamps hang in the foreground
+    #             in front of the cabinet — these are room fixtures, NOT cabinet items.
     # ------------------------------------------------------------------
-    "cabinet_interaction_context": """These frames are from a hotel lounge bar area security camera focused on a storage cabinet.
+    "cabinet_interaction_context": """These frames are from a hotel lounge bar area security camera focused on a tall glass-panel display cabinet (honesty bar / minibar vitrine with dark metal frame and wooden interior shelves).
 
-Determine whether a person is physically interacting with the storage cabinet — touching the door handle or panel, pulling or pushing the door, or standing in close proximity with their body oriented toward the cabinet and in the act of opening or attempting to open it.
+Determine whether a person is ACCESSING the cabinet — the glass door is open and the person is at the interior or reaching toward the shelves.
 
-Confirm TRUE if ANY of the following are visible:
-- A person's hands on or gripping the cabinet door handle, latch, or panel
-- The cabinet door in motion (opening or closing) with a person directly in front of it
-- A person leaning forward toward the cabinet at arm's reach, body clearly oriented toward it
-- The cabinet door partially or fully open with a person positioned at the opening
+SCENE NOTE: Large round decorative glass globes or pendant lamps may appear in the foreground between the camera and the cabinet. These are fixed room decorations — ignore them when assessing whether items are being taken from the cabinet.
 
-If BEFORE / AFTER sections are present, use them to assess intent:
-- BEFORE: was the person approaching the cabinet purposefully?
-- DETECTION: are they in contact with or opening the door?
-- AFTER: did the person step away from the cabinet (door interaction complete)?
+Confirm TRUE if ALL of the following:
+1. The glass cabinet door is visibly open (door panel displaced or interior shelves clearly accessible and exposed).
+2. The person is standing upright or leaning slightly forward in front of the open cabinet — NOT crouching at floor level.
+3. The person's body is oriented toward the cabinet interior — they are close to it, with arms raised or extended toward the shelves, or their torso is partially inside.
 
 Do NOT confirm if:
-- The person is walking past the cabinet without stopping or turning toward it
-- The person is standing nearby but facing away from the cabinet
-- No person is near the cabinet — even if the door is open
+- The cabinet glass door remains closed in all frames.
+- The person is crouching low at floor level (cleaning posture) with the door closed.
+- The person appears to be wiping, polishing, or cleaning the glass exterior.
+- The person is simply standing near the cabinet without engaging with its interior.
 
-Answer in JSON: {"confirmed": true/false, "description": "describe the person's position relative to the cabinet, hand contact with the door, door state (open/closed/in motion), and — if temporal sections present — the approach and departure sequence", "confidence": 0.0-1.0}
+If BEFORE / AFTER frames are present:
+- BEFORE: was the person approaching with empty hands (no cleaning cloth/mop)?
+- DETECTION: is the door open and the person engaging with the interior or the door handle?
+- AFTER: did the person step back with an item or close the door?
+
+Answer in JSON: {"confirmed": true/false, "description": "state whether the glass door is open or closed, the person's posture, and what their hands/arms are doing relative to the cabinet interior", "confidence": 0.0-1.0}
 Only respond with valid JSON.""",
 
     # ------------------------------------------------------------------
@@ -168,27 +174,43 @@ Answer in JSON: {"confirmed": true/false, "description": "describe what is visib
 Only respond with valid JSON.""",
 
     # ------------------------------------------------------------------
-    # cabinet_taken — temporal_context_sec: 4
+    # cabinet_taken — temporal_context_sec: 6
+    # Camera: side/frontal view at medium height, person back to camera.
+    # Cabinet: tall glass-panel honesty bar, dark metal frame, wooden shelves
+    #          stocked with snack boxes, bottles, drinks.
+    # Scene note: large round decorative glass globe pendant lamps hang in the
+    #             foreground — fixed room fixtures, NOT items from the cabinet.
     # ------------------------------------------------------------------
-    "cabinet_item_taken_context": """These frames are from a hotel lounge bar area security camera.
+    "cabinet_item_taken_context": """These frames are from a hotel lounge bar area security camera focused on a tall glass-panel display cabinet (honesty bar / minibar vitrine with dark metal frame and wooden shelves stocked with food, drinks and snacks).
 
-Determine whether a person is taking or handling items from inside the storage cabinet.
+Determine whether a person is removing or retrieving an item from INSIDE the open cabinet.
 
-Confirm TRUE if ANY of the following are visible:
-- A person with arms extended or reaching inside the cabinet opening
-- A person's hands clearly inside the cabinet, touching or grabbing stored items
-- A person turning away from the cabinet while visibly holding an object (bottle, box, bag) that was not in their hands before
-- The cabinet is open and a person is in close proximity with a new item in hand
+SCENE NOTE: Large round decorative glass globes or pendant lamps may appear in the foreground between the camera and the cabinet. These are fixed room fixtures — do NOT interpret them as items being taken from the cabinet.
 
-If BEFORE / AFTER sections are present, use them to track the full interaction:
-- BEFORE: was the person approaching the cabinet with empty hands?
-- DETECTION: are they reaching inside or at the cabinet?
-- AFTER: are they walking away holding something new?
-A complete APPROACH → ACCESS → DEPART sequence is a strong positive indicator.
+The person will typically be seen from behind (back to camera). This is normal — their arm reaching into the cabinet interior is still visible even from this angle.
 
-Do NOT confirm if: the person is merely standing near the closed cabinet, hands are at their sides with nothing in them, or the action is clearly ambiguous.
+Confirm TRUE if:
+1. The glass cabinet door is visibly open (interior shelves accessible, door panel displaced or clearly swung aside).
+2. The person's arm or hand is visibly extended toward or inside the cabinet opening — reaching toward the shelves, gripping a product, or withdrawing their arm with an item.
+3. The person is standing upright or slightly bent at the waist (NOT crouching at floor level).
 
-Answer in JSON: {"confirmed": true/false, "description": "describe body posture, hand position, any items visible, and — if temporal sections present — the sequence of actions observed", "confidence": 0.0-1.0}
+A confirmed "taken" event does NOT require the item to be clearly identified in hand after retrieval — it is sufficient that the arm entered the cabinet interior during the detection window.
+
+Do NOT confirm if:
+- The cabinet door is closed in all frames.
+- The person is crouching low at floor level near the cabinet base (cleaning posture).
+- The person is holding a cloth, sponge or mop (cleaning staff).
+- The person is standing near the cabinet but their arm never enters or reaches toward the interior.
+- The arm movement is toward the glass exterior surface only, not the interior.
+
+If BEFORE / AFTER frames are present:
+- BEFORE: person approaching with empty hands or pulling open the door.
+- DETECTION: arm extended into or withdrawn from the cabinet interior.
+- AFTER: person stepping back, possibly holding an item (bottle, box, snack) — or closing the door.
+
+The target pattern is: APPROACH → DOOR OPEN → ARM INSIDE → DEPART. Partial sequences (e.g. door already open at detection) are still confirmable if the arm-inside condition is met.
+
+Answer in JSON: {"confirmed": true/false, "description": "state whether the door is open, whether the person's arm entered the cabinet interior, the person's posture, and any item observed being held after the interaction", "confidence": 0.0-1.0}
 Only respond with valid JSON.""",
 
     # ------------------------------------------------------------------
@@ -265,19 +287,100 @@ Only respond with valid JSON.""",
     # ------------------------------------------------------------------
     "dog_presence": """These frames are from a hotel common area security camera.
 
-Determine whether a dog or other domestic animal is present in the scene.
+Determine whether a live dog or other domestic animal is present in the scene.
 
-Confirm TRUE only if ALL of the following are visible:
-1. An animal is clearly identifiable as a dog — four legs, fur, canine body shape (snout, ears, tail).
-2. The dog is on the floor, being walked on a leash, seated, or carried/held by a person.
-3. The animal is unmistakably a dog and not a toy, a bag, or another animal.
+Confirm TRUE only if ALL of the following are met:
+1. The animal's HEAD is clearly visible — you can see a recognisable animal snout/muzzle, ears, and eyes. This is MANDATORY. A rounded or furry shape without a visible head is NOT sufficient.
+2. The body is unmistakably that of a live animal (dog, cat, etc.) — NOT a toy, bag, cushion, or piece of furniture.
+3. For MAXIMUM confidence also confirm: four paws are visible on the floor or being held, and a tail or leash is present.
+
+CRITICAL — do NOT confirm if:
+- You see only people, chairs, sofas, or furniture — even rounded, tufted, or velvety shapes are NOT animals
+- Round-backed chairs, cushions, or ottomans can look like animal bodies from above — they are NOT animals
+- A person is crouching, sitting low, or kneeling — that alone does NOT indicate an animal nearby
+- The shape is ambiguous and no animal head (snout, muzzle) is clearly identifiable
+
+Answer in JSON: {"confirmed": true/false, "description": "describe what you see — if an animal, describe its head, body, position and leash; if no animal, explain what the rounded or ambiguous shape actually is", "confidence": 0.0-1.0}
+Only respond with valid JSON.""",
+
+    # ------------------------------------------------------------------
+    # locker_interaction — temporal_context_sec: 4
+    # Camera: ceiling-mounted, top-down view of hotel hallway corridor.
+    # Lockers: wooden hotel-style cabinet panels with electronic card readers.
+    # Key insight: from this angle doors may NEVER appear visibly open.
+    # ------------------------------------------------------------------
+    "locker_interaction_context": """These frames are from a ceiling-mounted security camera looking DOWN into a hotel hallway. Wooden locker cabinets run along one wall.
+
+IMPORTANT CAMERA CONTEXT:
+- The viewpoint is overhead — people appear as heads and backs from above, not from the side.
+- The lockers are wooden hotel-style cabinet panels with small electronic readers or keypads on their surface.
+- Because of the top-down angle, locker doors may not appear visibly open even when being accessed — the panel gap is not visible from above.
+
+Determine whether a person is ACCESSING the lockers: using a key fob, card or code at the reader, or depositing/retrieving items.
+
+Confirm TRUE if ANY of the following sequences is visible:
+1. A person stops directly beside the locker unit and reaches a hand toward the wooden panel — consistent with tapping a key fob, card or NFC token on the reader.
+2. A person is crouching or bending at the locker, with their body oriented toward the cabinet surface, consistent with opening a lower compartment or retrieving an item.
+3. A person holds a small object (card, fob, phone, token) and brings it close to the locker panel.
 
 Do NOT confirm if:
-- The scene shows only people with no animal visible
-- The shape is ambiguous and could be a bag, clothing, or furniture
-- Only a leash or collar is visible but no animal body is in frame
+- A person is merely walking past the lockers without pausing or turning toward them.
+- People are standing in the hallway but clearly not oriented toward or engaged with the locker cabinet.
+- The only presence near the locker is legs or feet briefly passing the edge of frame with no deliberate movement toward the unit.
 
-Answer in JSON: {"confirmed": true/false, "description": "describe the animal's position, size, and whether it is on a leash or held by someone", "confidence": 0.0-1.0}
+Use the temporal sequence (BEFORE / DETECTION WINDOW / AFTER) to distinguish a deliberate locker access from a person who simply happens to be near the locker wall.
+
+Answer in JSON: {"confirmed": true/false, "description": "describe the person's position relative to the locker cabinet, their body orientation, any object visible in their hand (fob/card/bag), and whether the sequence suggests deliberate locker access", "confidence": 0.0-1.0}
+Only respond with valid JSON.""",
+
+    # ------------------------------------------------------------------
+    # vehicle_loading_unloading — temporal_context_sec: 4
+    # ------------------------------------------------------------------
+    "vehicle_loading_context": """These frames are from a security camera overlooking a hotel parking area or driveway.
+
+Determine whether a person is actively LOADING or UNLOADING objects from a vehicle.
+
+Confirm TRUE only if ALL of the following are visible:
+1. A vehicle (car, van, taxi, etc.) is present with its boot/trunk, rear door, or side door visibly OPEN.
+2. A person is actively transferring objects — carrying, lifting, dragging bags, boxes, suitcases or luggage — between the vehicle and the ground or vice versa.
+3. The transfer is clearly in progress: items are mid-air, being placed in the boot, or being pulled out of it.
+
+CRITICAL — do NOT confirm if:
+- A person is simply standing near a vehicle without moving objects
+- The vehicle boot/door is closed — even if luggage is visible on the ground nearby
+- A person is merely walking past a parked car
+- The vehicle is moving or driving through — loading/unloading only happens when stationary
+- Only a driver is visible entering or exiting the vehicle with no additional cargo
+
+If temporal frames are provided (BEFORE / DETECTION WINDOW / AFTER), use the sequence to verify that objects are being moved between the vehicle and the outside.
+
+Answer in JSON: {"confirmed": true/false, "description": "describe what is being transferred, the vehicle type, door state and direction of transfer (loading/unloading)", "confidence": 0.0-1.0}
+Only respond with valid JSON.""",
+
+    # ------------------------------------------------------------------
+    # garage_door_open — temporal_context_sec: 3
+    # ------------------------------------------------------------------
+    "garage_door_context": """These frames are from a security camera overlooking the entrance of a hotel bike storage area.
+
+The door is a LARGE HINGED GATE made of frosted or translucent glass panels in a metal grid frame. It opens by SWINGING TO THE SIDE on hinges — it does NOT roll up or retract overhead.
+
+Determine whether the gate/door is currently OPEN or is in the act of being opened.
+
+Confirm TRUE if ANY of the following is visible:
+1. A gap or open passageway is visible where the door panel meets the wall or frame — the door has clearly swung away from its closed position.
+2. The door panel is visibly displaced to one side, angled away from the facade, revealing an opening.
+3. The threshold or entrance is unobstructed and accessible — you can see through or past the open door panel to the area beyond.
+
+CRITICAL — do NOT confirm if:
+- All door panels are flush and aligned with the wall — door fully closed, no gap visible
+- You cannot clearly see whether the door is open or closed due to the camera angle or image quality
+- A person nearby is the only evidence — the door panel itself must be visibly open or displaced
+
+The camera views the door from an elevated angle. A closed door shows all glass panels aligned in a flat continuous wall. An OPEN door shows at least one panel swung out, creating a visible gap or opening.
+
+If temporal frames are provided (BEFORE / DETECTION WINDOW / AFTER), compare the door position across frames — a panel that shifted position indicates opening.
+
+Answer in JSON: {"confirmed": true/false, "description": "describe the door panel position — flush/closed, swung open with gap visible, or partially open — and cite the specific visual evidence", "confidence": 0.0-1.0}
 Only respond with valid JSON.""",
 
     # ------------------------------------------------------------------

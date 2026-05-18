@@ -32,6 +32,18 @@ class _State:
 
 
 # ---------------------------------------------------------------------------
+# Webhook URL resolution: area → site → env default
+# ---------------------------------------------------------------------------
+
+def _resolve_webhook(area_cfg, cfg, default_url: str) -> str:
+    if area_cfg and getattr(area_cfg, "webhook_url", None):
+        return area_cfg.webhook_url
+    if cfg and getattr(cfg.site, "webhook_url", None):
+        return cfg.site.webhook_url
+    return default_url
+
+
+# ---------------------------------------------------------------------------
 # process_clip — called by ClipQueue worker for each job
 # ---------------------------------------------------------------------------
 
@@ -77,7 +89,7 @@ def _make_processor(state: _State, embedding_client, router, clip_managers: dict
                     default_frame_set = frame_set
                 scored = await state.evaluator.evaluate_windowed(
                     frame_set, embedding_client, job.camera_id,
-                    job.area_id, signal_pairs,
+                    job.area_id, signal_pairs, top_k=cfg.embed_top_k,
                 )
                 all_scored.extend(scored)
 
@@ -85,7 +97,11 @@ def _make_processor(state: _State, embedding_client, router, clip_managers: dict
                 return
 
             cooldown = area_cfg.alert_cooldown_sec or cfg.site.alert_cooldown_sec
-            await router.route(all_scored, job, default_frame_set, cooldown, area_cfg)
+            default_url = os.getenv("WEBHOOK_DEFAULT_URL",
+                                    "http://localhost:8000/api/internal/alert")
+            resolved_url = _resolve_webhook(area_cfg, cfg, default_url)
+            await router.route(all_scored, job, default_frame_set, cooldown, area_cfg,
+                               webhook_url=resolved_url)
 
         except EmbeddingServiceUnavailable as exc:
             log.error("embedding_unavailable",
@@ -179,8 +195,12 @@ async def main(config_path: Path, with_api: bool = False) -> None:
     configure_logging(cfg.log_level)
     log.info("engine_starting", site=cfg.site.id, areas=list(cfg.areas))
 
-    # 2. Embedding service + signal cache
-    embedding_client = EmbeddingClient(cfg.embedding_service_url)
+    # 2. Embedding service + signal cache (stesso endpoint/key del LLM)
+    embedding_client = EmbeddingClient(
+        cfg.embedding_base_url,
+        model=cfg.embedding_model,
+        api_key=cfg.embedding_api_key,
+    )
     signal_cache     = SignalCache(embedding_client, cfg.signals)
     try:
         await signal_cache.warm_up()
@@ -226,6 +246,7 @@ async def main(config_path: Path, with_api: bool = False) -> None:
         send_frame_size=int(os.getenv("LLM_FRAME_SIZE_SEND", "336")),
         send_jpeg_quality=int(os.getenv("LLM_JPEG_QUALITY_SEND", "80")),
         enable_thinking=cfg.llm_thinking,
+        use_reasoning=cfg.llm_use_reasoning,
     )
 
     # 6. Router + evaluator

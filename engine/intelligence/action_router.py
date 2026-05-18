@@ -13,6 +13,7 @@ from uuid import uuid4
 from engine.intelligence.llm_vision_client import TemporalContext
 from engine.intelligence.signal_evaluator import ScoredSignal
 from engine.output.alert_dedup import AlertDedup
+from engine.storage.lancedb_store import EMB_DIM
 
 try:
     import structlog
@@ -89,6 +90,7 @@ class ActionRouter:
         area_config: Any | None = None,
         event_time: datetime | None = None,
         temporal_context: TemporalContext | None = None,
+        webhook_url: str | None = None,
     ) -> list[ActionResult]:
         """
         Per ogni ScoredSignal:
@@ -168,7 +170,7 @@ class ActionRouter:
                         score=scored.score,
                         action=scored.action,
                         clip_path=saved_clip_path,
-                        embedding=[0.0] * 512,
+                        embedding=[0.0] * EMB_DIM,
                         llm_verdict=None,
                     ))
 
@@ -189,18 +191,40 @@ class ActionRouter:
                     except Exception as exc:
                         log.warning("llm_escalation_failed", error=str(exc))
 
-                # LLM suppression: if LLM was reachable and explicitly denied, skip notification.
-                # Fail-open: if LLM was unavailable, proceed normally.
-                llm_suppressed = (
-                    llm_verdict is not None
-                    and llm_verdict.llm_available
-                    and not llm_verdict.confirmed
-                )
-                if llm_suppressed:
-                    log.info("llm_suppressed_event", signal_id=scored.signal_id,
-                             area_id=area_id, score=round(scored.score, 4),
-                             description=llm_verdict.description,
-                             confidence=round(llm_verdict.confidence, 3))
+                # Fail-closed: se il signal richiede LLM, procede SOLO con conferma esplicita.
+                # LLM non disponibile o confirmed=False → niente salvataggio né notifica.
+                if use_llm:
+                    llm_confirmed = (
+                        llm_verdict is not None
+                        and llm_verdict.llm_available
+                        and llm_verdict.confirmed
+                    )
+                    if not llm_confirmed:
+                        if llm_verdict is not None and llm_verdict.llm_available:
+                            log.info("llm_suppressed_event", signal_id=scored.signal_id,
+                                     area_id=area_id, score=round(scored.score, 4),
+                                     description=llm_verdict.description,
+                                     confidence=round(llm_verdict.confidence, 3))
+                        else:
+                            log.warning("llm_unavailable_skip", signal_id=scored.signal_id,
+                                        area_id=area_id, score=round(scored.score, 4))
+                        results.append(ActionResult(
+                            signal_id=scored.signal_id,
+                            action=scored.action,
+                            score=scored.score,
+                            fired=False,
+                            llm_escalation=llm_esc,
+                        ))
+                        continue
+
+                # LLM ha confermato (o LLM non richiesto): salva e notifica.
+                lv_dict = None
+                if llm_verdict is not None:
+                    lv_dict = {
+                        "confirmed":   llm_verdict.confirmed,
+                        "description": llm_verdict.description,
+                        "confidence":  llm_verdict.confidence,
+                    }
 
                 if self._lancedb_store:
                     from engine.storage.lancedb_store import Event
@@ -213,19 +237,12 @@ class ActionRouter:
                         score=scored.score,
                         action=scored.action,
                         clip_path=saved_clip_path,
-                        embedding=[0.0] * 512,
+                        embedding=[0.0] * EMB_DIM,
                         llm_verdict=llm_verdict,
                     ))
 
-                if not llm_suppressed and self._notifier:
+                if self._notifier:
                     from engine.output.notifier import AlertPayload
-                    lv_dict = None
-                    if llm_verdict is not None:
-                        lv_dict = {
-                            "confirmed":   llm_verdict.confirmed,
-                            "description": llm_verdict.description,
-                            "confidence":  llm_verdict.confidence,
-                        }
                     payload = AlertPayload(
                         event_id=event_id,
                         timestamp=now.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
@@ -241,13 +258,14 @@ class ActionRouter:
                         camera_id=clip_job.camera_id if clip_job else "",
                     )
                     if scored.action == "alarm":
-                        await self._notifier.send_priority(payload)
+                        await self._notifier.send_priority(payload, url=webhook_url)
                     else:
-                        await self._notifier.send(payload)
+                        await self._notifier.send(payload, url=webhook_url)
 
             log.info("action_dispatched", signal_id=scored.signal_id,
                      action=scored.action, score=scored.score,
-                     area_id=area_id, llm_escalation=llm_esc)
+                     area_id=area_id, llm_escalation=llm_esc,
+                     webhook_url=webhook_url)
             results.append(ActionResult(
                 signal_id=scored.signal_id,
                 action=scored.action,

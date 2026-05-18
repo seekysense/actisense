@@ -1090,3 +1090,377 @@ State: `view` ("list" | "detail"), `selectedIdx`, `clipError`
 - `eventsLoading` state mostra indicatore `…` nel titolo durante il fetch
 - Week pills mostrano il conteggio eventi filtrati per la finestra oraria (TimeBar range)
 - Il badge "Live" è non-interattivo (solo indicatore visivo)
+
+---
+
+## Step 20 — Docker production deployment (ARM64)
+
+**Data:** 2026-05-15
+**Stato:** ✅ COMPLETATO
+**Dipende da:** Step 12 (FastAPI), Step 19 (Config CRUD API)
+**Piano:** [docs/step-17.md](step-17.md)
+
+### Cosa è stato fatto
+
+Pacchettizzato VisionSemanticAgent per produzione su Docker ARM64. Tre container, CORS da env, healthcheck, volumi bind-mount per persistenza dati.
+
+**File creati:**
+
+| File | Descrizione |
+|------|-------------|
+| `docker/Dockerfile.engine` | Python 3.11-slim, opencv + ffmpeg system libs, avvia `engine.main` |
+| `docker/Dockerfile.api` | Python 3.11-slim, uvicorn `--log-config /dev/null` (structlog su stdout) |
+| `docker/Dockerfile.frontend` | Build Node 20-alpine → nginx:alpine, `VITE_API_URL=""` same-origin |
+| `docker/nginx.conf` | SPA fallback, proxy `/api/` → vsa-api:8000, WebSocket upgrade `/api/ws`, proxy `/docs` `/redoc` `/openapi.json` |
+| `docker-compose.yml` | 3 servizi (vsa-api, vsa-engine, vsa-frontend), `platform: linux/arm64`, bind-mount `./config`, healthcheck API, dipendenze con condition `service_healthy` |
+| `.env.production.template` | Template completo con tutti i parametri; `FRAME_DEBUG_DIR=` disabilita debug frame in prod |
+
+**File modificati:**
+
+| File | Modifica |
+|------|----------|
+| `api/main.py` | `_cors_origins()`: legge `CORS_ORIGINS` da env (CSV), default dev ports |
+| `.gitignore` | Aggiunto `.env.production` e `docker-compose.override.yml` |
+
+### Dettagli implementazione
+
+**CORS da env:**
+```python
+def _cors_origins() -> list[str]:
+    raw = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:4173")
+    return [o.strip() for o in raw.split(",") if o.strip()]
+```
+
+**Persistenza:** `lancedb_data` e `clips_data` sono bind-mount sulla directory host `${DATA_DIR:-./data}`. Il config CRUD API scrive in `./config` (bind-mount su entrambi vsa-api e vsa-engine).
+
+**SIGHUP reload senza downtime:**
+```bash
+docker compose kill -s HUP vsa-engine
+```
+L'handler SIGHUP di engine ricarica `site.yaml` e rewarms la signal cache.
+
+**ARM64:** tutte le immagini base ufficiali multi-arch (`python:3.11-slim`, `node:20-alpine`, `nginx:alpine`). Nessun `--platform linux/amd64` o QEMU.
+
+**Log:** nessun file sink — solo stdout. `docker logs vsa-engine` cattura tutto via structlog JSON.
+
+**Swagger in produzione:** nginx proxia `/docs`, `/redoc`, `/openapi.json` verso vsa-api → Swagger UI accessibile da `http://<host>/docs`.
+
+### Avvio produzione
+
+```bash
+mkdir -p data/lancedb data/clips
+cp .env.production.template .env.production
+# edit .env.production
+docker compose build
+docker compose up -d
+docker compose ps
+```
+
+### Verifica test Step 20
+
+```
+tests/test_docker.py   25 passed ✅
+  - 6 test _cors_origins() (unit + live env)
+  - 6 test file existence (Dockerfiles, compose, template)
+  - 8 test content Dockerfile/nginx (python:3.11, EXPOSE 8000, --log-config /dev/null, two-stage, WebSocket, SPA fallback)
+  - 3 test docker-compose.yml (3 servizi, healthcheck, volumi)
+  - 1 test template required keys
+  - 1 test gitignore entries
+
+Suite locale completa: 150 passed ✅
+```
+
+### Note
+
+- `CORS_ORIGINS` in `.env.production` va valorizzato solo se si accede all'API da host separato (es. Postman, tool esterni). Con nginx come proxy il frontend usa la stessa origine — CORS non è necessario per il dashboard.
+- Il file `.env.production` non è mai committato (`.gitignore`); usare `.env.production.template` come riferimento.
+
+---
+
+## Step 19 — Config CRUD API: typed schemas, Swagger docs, PATCH verbs
+
+**Data:** 2026-05-15
+**Stato:** ✅ COMPLETATO
+**Dipende da:** Step 18 (Config CRUD base)
+**Piano:** [docs/step-16.md](step-16.md)
+
+### Cosa è stato fatto
+
+Riscritto completamente il layer Config CRUD API con schemi Pydantic tipizzati, documentazione Swagger completa, verbi PATCH invece di PUT, e autenticazione separata per config vs dashboard.
+
+**File modificati/creati:**
+
+| File | Descrizione |
+|------|-------------|
+| `api/schemas/__init__.py` | NUOVO — package vuoto |
+| `api/schemas/config.py` | NUOVO — schemi Pydantic v2 con `Field(description=...)`: `SiteRead`, `SitePatch`, `SignalRead`, `SignalCreate`, `SignalPatch`, `AreaSignalOverride`, `AreaSignalOverridePatch`, `AreaRead`, `AreaPatch`, `CameraRead`, `CameraPatch`, `MessageResponse`, `ErrorResponse` |
+| `api/deps.py` | Aggiunto `get_config_api_key` con `HTTPBearer(auto_error=False)`: 503 se `CONFIG_API_KEY` non configurato, 401 se chiave errata |
+| `api/services/config_writer.py` | Aggiunto `find_signal_library()` e `custom_library_path()` per navigare le librerie signal |
+| `api/routers/config.py` | Riscrittura completa: `response_model=` tipizzati, verbi PATCH per signal e camera, nuovo `GET /areas/{id}/signals`, tag Swagger per gruppo, `get_config_api_key` su tutti gli endpoint CRUD, legacy `GET /config` usa ancora `get_current_user` per compatibilità dashboard |
+| `api/main.py` | Aggiunto `openapi_tags` con 9 gruppi e `description` OpenAPI |
+| `tests/test_config_api.py` | Aggiornato: PUT→PATCH, fixture con 3 signal in libreria, test `GET /areas/{id}/signals`, correzione assertion risposta flat (no wrapper `site:`) |
+
+**Dettagli implementazione:**
+
+**`AreaSignalOverride` usa `id` (non `signal_id`)** — coerenza con il formato YAML di storage (`site.yaml` usa `id:` nelle signal list delle aree).
+
+**`patch_signal` ricarica via engine** dopo scrittura YAML per garantire che i valori di default (source, cooldown_sec, temporal_context_sec) siano sempre presenti nella risposta — anche se non presenti nel file YAML.
+
+**`add_area_signal`** non valida più l'esistenza del signal nella libreria: l'operatore può assegnare un signal a un'area prima di definirlo nella libreria (staging workflow).
+
+**Security invariants mantenuti:**
+- `axis_pass` mai restituita nelle risposte camera
+- `id` immutabile su signal, camera e area-signal override (forzato server-side)
+- `validate_camera_id` blocca path traversal
+
+### Verifica test Step 19
+
+```
+tests/test_config_api.py   33 passed ✅  (vs 32 precedenti — aggiunto test list_area_signals)
+tests/test_api.py          12 passed ✅  (nessuna regressione)
+tests/test_webhook_resolution.py  7 passed ✅
+
+Suite locale (esclusi test con servizi esterni): 125 passed ✅
+```
+
+### Note
+
+- `GET /api/config` (summary legacy) mantiene `get_current_user` → JWT o CONFIG_API_KEY come Bearer
+- Tutti gli altri `GET|PATCH|POST|DELETE /api/config/*` usano `get_config_api_key` → solo CONFIG_API_KEY
+- Swagger UI disponibile su `/docs` con tag grouping e esempi inline
+- `test_native_axis_signal_excluded` fallisce per regressione pre-esistente: il servizio embedding esterno ha cambiato la dimensione dei vettori (1024 → 2048). Non correlato a Step 19.
+
+---
+
+## Step 18 — Webhook URL configurabile + Config CRUD API
+
+**Data:** 2026-05-15
+**Stato:** ✅ COMPLETATO
+**Dipende da:** Step 12, Step 15 (spec)
+**Piano:** [docs/step-15.md](step-15.md)
+
+### Cosa è stato fatto
+
+Due feature implementate in parallelo.
+
+**File implementati / modificati:**
+
+| File | Descrizione |
+|------|-------------|
+| `engine/config/models.py` | `webhook_url: str \| None = None` aggiunto a `Site` e `Area` |
+| `engine/output/notifier.py` | `send(payload, url=None)` e `send_priority(payload, url=None)`: URL override opzionale per call; `_post` usa `target_url` |
+| `engine/intelligence/action_router.py` | `route(..., webhook_url=None)`: passa `url=webhook_url` a `send`/`send_priority`; aggiunto al log `action_dispatched` |
+| `engine/main.py` | `_resolve_webhook(area_cfg, cfg, default_url)`: area → site → env; chiama `route(..., webhook_url=resolved_url)` |
+| `scripts/batch_process.py` | Stessa logica `_resolve_webhook` + `webhook_url` passato a `route()` |
+| `api/deps.py` | `CONFIG_API_KEY = os.getenv("CONFIG_API_KEY", "")` — se configurato, accettato come token Bearer alternativo al JWT |
+| `api/services/config_writer.py` | NUOVO: `read_yaml`, `write_yaml` atomica (temp+os.replace), `site_yaml_path`, `cameras_dir`, `validate_camera_id` (regex `^[A-Za-z0-9_-]+$`) |
+| `api/routers/config.py` | Riscrittura completa con CRUD: site, signals (list/get/put/post/delete), areas (list/get/patch + signal overrides CRUD), cameras (list/get/put) |
+| `tests/test_webhook_resolution.py` | NUOVO: 7 test unit per `_resolve_webhook` (area→site→env, empty string, None cfg) |
+| `tests/test_config_api.py` | NUOVO: 32 test API per tutti gli endpoint CRUD: auth (API key + JWT), site, signals, areas, cameras, sicurezza (no axis_pass, validate_camera_id) |
+
+**Regressioni pre-esistenti risolte:**
+
+| Test | Causa | Fix |
+|------|-------|-----|
+| `test_preprocessing.py` 4 test | Riferimento a `cfg.frame_sample_count` rimosso in Step 15 ma test non aggiornati | Sostituito con `frame_count > 0` / `> 0` |
+| `test_output.py::test_action_router_llm_degraded` | Test scritto per policy fail-open (Step 10) ma policy aggiornata a fail-closed in step successivi | Aggiornato: LLM richiesto ma down → `fired=False`, `received=0` |
+
+### Dettagli implementazione
+
+**Risoluzione webhook URL:**
+```
+area.webhook_url → site.webhook_url → env WEBHOOK_DEFAULT_URL
+```
+Comportamento: stringa vuota (`""`) è falsy → passa al livello successivo. `None` in cfg → fallthrough.
+
+**Config CRUD — sicurezza:**
+- `axis_pass` mai restituita nelle risposte camera (`GET` e `PUT`)
+- `id` immutabile su signal, camera e area-signal override (forzato server-side)
+- `validate_camera_id` blocca IDs con `/`, `.`, spazi tramite regex `^[A-Za-z0-9_-]+$`
+- `write_yaml` scrive solo sotto `config/` — path traversal impossibile a livello filesystem
+
+**`CONFIG_API_KEY` in `api/deps.py`:**
+- Letta a import-time da `os.getenv` — se vuota (default), non accettata
+- Precedenza sul JWT: se il token corrisponde alla API key → autenticato come `"api-key-user"`
+- Nei test: monkeypatched via `monkeypatch.setattr("api.deps.CONFIG_API_KEY", TEST_KEY)`
+
+### Verifica test Step 18
+
+```
+tests/test_webhook_resolution.py   7 passed ✅
+tests/test_config_api.py          32 passed ✅
+tests/test_api.py                 12 passed ✅  (nessuna regressione)
+tests/test_output.py              10 passed ✅  (fix fail-closed)
+tests/test_preprocessing.py       16 passed ✅  (fix frame_sample_count)
+
+Suite locale completa: 113 passed ✅
+```
+
+### Note
+
+- `SITE_CONFIG_PATH` letta a call-time in `config_writer.py` → monkeypatchable via env
+- L'endpoint `GET /api/config/cameras/{id}` rimuove `axis_pass` dalla risposta; `PUT` ignora `axis_pass` nel body
+- I test della Config API usano fixture `tmp_config` con config minimale in `tmp_path` → nessun side effect sul config reale
+- Path traversal via URL (`cameras/../site`) normalizzato da Starlette prima del routing → non raggiunge il handler; la validazione Python protegge da IDs costruiti a codice
+
+---
+
+## Fix — LLM Vision: max_tokens 1024 → 4096 + EMB_DIM 1024 → 2048
+
+**Data:** 2026-05-15  
+**Stato:** ✅ COMPLETATO
+
+### Problema rilevato — LLM `finish_reason=length`
+
+Il modello LLM (`Galene/LLM`) è un reasoning model: usa il campo `reasoning` per la fase di thinking e scrive il JSON finale in `content`. Con `max_tokens=1024`:
+- Il reasoning occupa ~830–1465 token (varia per numero di frame e complessità scena)
+- Il modello esauriva i token nella fase di thinking → `finish_reason=length` → `content=None`
+- Il codice fallback a `msg.get("reasoning")`, che non contiene JSON → parsing fallisce → `confirmed=False, confidence=0.0`
+
+**Effetto:** `cabinet_opened` e `cabinet_taken` (e potenzialmente altri segnali) restituivano sempre `confirmed=False` dall'LLM anche su scene chiaramente positive. Il segnale semantico funzionava (score 0.68/0.65 >> soglia 0.40/0.38) ma l'escalation LLM bloccava la conferma.
+
+**Analisi empirica token usage:**
+
+| Configurazione | max_tokens | finish_reason | tok usati | Risultato |
+|---------------|-----------|--------------|-----------|-----------|
+| `cabinet_opened`, 1 frame | 1024 | `length` | 1024 | FAIL |
+| `cabinet_opened`, 3 frame | 2048 | `stop` | 1465 | OK ✅ |
+| `cabinet_opened`, 8 frame | 4096 | `stop` | 673 | OK ✅ |
+| `cabinet_taken`, 1 frame | 1024 | `stop` | 725 | OK (variabile) |
+| `cabinet_taken`, 8 frame | 4096 | `stop` | 1412 | OK ✅ |
+
+Worst case osservato su 1-8 frame: 1465 token. Con margine per variabilità: `max_tokens=4096`.
+
+### Fix applicati
+
+**`engine/intelligence/llm_vision_client.py`:**
+- `_call_chat_completions`: `max_tokens: 1024` → `max_tokens: 4096`
+- Questo garantisce che il reasoning model completi la fase di thinking E scriva il JSON in `content`
+
+**`engine/storage/lancedb_store.py`:**
+- `EMB_DIM = 1024` → `EMB_DIM = 2048`
+- Aggiornato il commento: il modello Galene/Embedding-Vision produce vettori 2048-dim
+- Fix della regressione pre-esistente (`ValueError: shapes (1024,) and (2048,) not aligned`) in `test_native_axis_signal_excluded`
+
+**`tests/test_storage.py`:**
+- `embedding=[0.0] * 1024` → `embedding=[0.0] * 2048` per coerenza con `EMB_DIM`
+
+### Nota operativa
+
+Il database LanceDB esistente in `data/lancedb/` è stato creato con schema 1024-dim. **Va eliminato prima del prossimo avvio del motore:**
+```bash
+rm -rf data/lancedb/
+```
+Il motore lo ricrea automaticamente via `LanceDBStore.initialize()` al primo avvio.
+
+### Verifica
+
+```
+tests/test_storage.py            13 passed ✅ (include test con EMB_DIM 2048)
+tests/test_signal_evaluator.py   12 passed ✅ (test_native_axis_signal_excluded ora passa)
+tests/test_llm_vision.py         19 passed ✅ (nessuna regressione)
+
+Suite locale completa: 182 passed ✅
+```
+
+### Verifica manuale LLM su frame cabinet-005
+
+Frame: `data/frame_debug/20260515_104028_4B65_B8A44FC6820B/cabinet-005.jpeg`  
+Scena: persona (felpa bianca, schiena alla camera) davanti al cabinet onesty bar. Anta nera destra aperta, scaffali interni con scatole rosse (Nespresso), snack, bottiglie.
+
+| Prompt | Frame | confirmed | confidence |
+|--------|-------|-----------|-----------|
+| `cabinet_interaction_context` | 1 frame | True | 0.95 |
+| `cabinet_item_taken_context` | 1 frame | True | 0.90 |
+| `cabinet_interaction_context` | 3 frame (004-006) | True | 0.95 |
+| `cabinet_item_taken_context` | 3 frame (004-006) | True | 0.95 |
+| `cabinet_interaction_context` | 8 frame (001-008) | True | 0.95 |
+| `cabinet_item_taken_context` | 8 frame (001-008) | True | 0.95 |
+
+---
+
+## Step 18 — Setup UI: Cameras, Zones, Signals
+
+**Obiettivo:** Integrare i mockup `design/setup.jsx` + `design/signals.jsx` nel frontend React, implementare tutte le API di supporto, documentare in `docs/step-18.md`.
+
+### File nuovi
+
+| File | Descrizione |
+|------|-------------|
+| `api/services/wizard_store.py` | Storage temporaneo clip wizard con TTL 24h, path traversal safe |
+| `api/routers/setup.py` | Router `/api/setup/*`: suggest-phrase, upload-clip, capture-clip, calibrate (SSE), delete-clip |
+| `docs/step-18.md` | Specifica completa API Setup UI (14 endpoint esistenti + 8 nuovi) |
+| `frontend/src/pages/Setup.jsx` | Pagina Setup completa (~700 righe): TopNav, Landing, CameraList, CameraForm, RoiEditor, SignalList, SignalWizard (4 step) |
+
+### File modificati
+
+**Backend:**
+
+| File | Modifica |
+|------|----------|
+| `api/main.py` | Include `setup_router` con prefix `/api` |
+| `api/deps.py` | `get_config_api_key` accetta JWT oltre a CONFIG_API_KEY (fallback per frontend loggato) |
+| `api/routers/config.py` | Aggiunto POST/DELETE `/config/cameras`, GET `/config/cameras/:id/snapshot` |
+| `api/schemas/config.py` | Aggiunto `CameraCreate` schema |
+| `engine/ingestion/axis_client.py` | Aggiunto metodo `get_snapshot()` (VAPIX `jpg/image.cgi`) |
+| `engine/preprocessing/frame_extractor.py` | Aggiunto `extract_raw_frames()` senza dipendenze ROI/camera |
+
+**Frontend:**
+
+| File | Modifica |
+|------|----------|
+| `frontend/src/index.css` | +335 righe CSS `.setup-*` per tutti i componenti Setup |
+| `frontend/src/App.jsx` | Route `/setup` → `<Setup>` protetta da `RequireAuth` |
+| `frontend/src/components/Sidebar.jsx` | Link icona Settings → `/setup` nel footer sidebar |
+
+### Architettura Setup UI
+
+```
+Setup (view state machine)
+├─ landing           → Landing (2 card: cameras / signals)
+├─ list              → CameraList (cam-card con edit, ROI, delete)
+├─ form              → CameraForm (create/edit; POST o PATCH /api/config/cameras)
+├─ roi               → RoiEditor (SVG polygon draw + zona panel; PATCH preprocessing)
+├─ signals-list      → SignalList (search, badge, delete confirm)
+└─ signal-wizard     → SignalWizard 4-step
+    ├─ Step1: Describe (camera, description, priority, action, zones, AI phrase via /setup/signal/suggest-phrase)
+    ├─ Step2: Examples (upload file → /setup/signal/upload-clip; capture Axis → /setup/signal/capture-clip)
+    ├─ Step3: Calibrate (SSE stream → /setup/signal/calibrate; score bar, threshold slider, AI rec)
+    └─ Step4: Review (inline edit, LLM check toggle, save → POST/PATCH /api/config/signals)
+```
+
+### Mapping campi wizard → schema signal
+
+| Wizard state | API schema (`SignalCreate`) |
+|---|---|
+| `phrase` | `text` |
+| `threshold` | `default_threshold` |
+| `action` | `default_action` |
+| `llmCheck` | `escalation_llm` |
+| `zones` (array) | `zone` (array o null) |
+
+### Mapping campi camera
+
+| Design mock | API schema (`CameraCreate`) |
+|---|---|
+| `ip` | `axis_ip` |
+| `event_id` | `axis_event_id` |
+| `people_counting` (bool) | `native_analytics.people_counting` |
+
+### ROI zone format
+
+Zone disegnate nell'editor → salvate in `camera.preprocessing.roi.zones[]`:
+```yaml
+zones:
+  - name: cabinet
+    polygon: [[12.4, 18.1], [38.2, 16.0], ...]
+    exclude: false
+    rotation: 0
+    perspective_quad: [[10, 15], ...]  # opzionale
+```
+
+### Verifica build
+
+```
+npm run build   ✅  (49 modules, 261 kB JS, 55 kB CSS)
+```

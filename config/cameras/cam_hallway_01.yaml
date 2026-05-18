@@ -1,0 +1,25 @@
+id: cam_hallway_01
+name: Hallway -1
+area: lockers
+axis_ip: 10.46.67.8
+axis_event_id: ACC_Motion_B8A44FC1F221_0
+preprocessing:
+  roi:
+    enabled: true
+    zones:
+    - name: lockers
+      polygon:
+      - - 734
+        - 1076
+      - - 716
+        - 182
+      - - 1914
+        - 186
+      - - 1914
+        - 1076
+      - - 732
+        - 1076
+      - - 734
+        - 1074
+      - - 734
+        - 1074

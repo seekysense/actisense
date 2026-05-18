@@ -1,4 +1,6 @@
 .env
+.env.production
+docker-compose.override.yml
 .venv/
 __pycache__/
 *.pyc
@@ -8,9 +10,13 @@ frontend/dist/
 /tmp/vsa_clips/
 data/
 *.mp4
-!video-test/*.mp4
 .DS_Store
 .emb-env/
 embedder/
 video-test/
+logs/
+.vscode/
+.claude/
+docs/
+design/
 logs/

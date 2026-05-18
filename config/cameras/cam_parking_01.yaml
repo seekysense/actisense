@@ -1,0 +1,25 @@
+id: cam_parking_01
+name: Parking Lot Entrance
+area: parking_lot
+axis_ip: 10.46.67.10
+axis_event_id: ACC_Motion_B8A44FE235E4_1
+preprocessing:
+  roi:
+    enabled: true
+    zones:
+    - name: parking
+      polygon:
+      - - 297
+        - 1933
+      - - 297
+        - 284
+      - - 2584
+        - 353
+      - - 2584
+        - 1393
+      - - 2209
+        - 1937
+      - - 300
+        - 1937
+      - - 300
+        - 1937

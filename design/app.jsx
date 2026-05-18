@@ -50,10 +50,11 @@ function Sidebar({
       <aside className={"sidebar " + (open ? "open" : "")}>
         <div className="site-card">
           <div className="site-brand">
-            <div className="site-brand-dot" />
+            <img src="logo.svg" alt="ActiSense" className="site-brand-logo" />
             <div>
-              <div className="site-brand-name">ActiSense</div>
-              <div className="site-brand-tag">Operations Console</div>
+              <div className="site-brand-name">H4H Vision AI
+              </div>
+              <div className="site-brand-tag">BETA</div>
             </div>
           </div>
           <div className="site-select">
@@ -73,8 +74,7 @@ function Sidebar({
             </span>
           </div>
           <div className="filter-list">
-            {AREAS.map((a) => {
-              const on = areaFilter.length === 0 || areaFilter.includes(a.id);
+            {AREAS.map((a) => {const on = areaFilter.length === 0 || areaFilter.includes(a.id);
               return (
                 <div key={a.id} className={"filter-item " + (areaFilter.includes(a.id) ? "on" : "")} onClick={() => toggleArea(a.id)}>
                   <div className="filter-check" />
@@ -335,7 +335,7 @@ function AreaTile({ area, events, range, onOpenEvent, onOpenSignal, signalStates
             <div className="sig-meta">
               <span className={"count " + (count > 0 && sig.default_action !== 'statistic' ? "hi" : "")}>{count}</span>
               <button className="sig-cog" aria-label="Configure signal" title="Configure signal"
-                onClick={(e) => { e.stopPropagation(); onOpenSignal({ area, as, sig, state }); }}>
+            onClick={(e) => {e.stopPropagation();onOpenSignal({ area, as, sig, state });}}>
                 <span className="mi">settings</span>
               </button>
             </div>
@@ -673,6 +673,10 @@ function App() {
               <div className="tb-btn">Today <span className="k">T</span></div>
               <div className="tb-btn">Week</div>
               <div className="tb-btn">Export</div>
+              <a className="tb-btn" href="Setup - Cameras & Zones.html" style={{ textDecoration: 'none' }}>
+                <span className="mi" style={{ fontFamily: "'Material Symbols Rounded'", fontWeight: 500, fontStyle: 'normal', fontSize: 16, lineHeight: 1, fontFeatureSettings: "'liga'" }}>tune</span>
+                Setup
+              </a>
               <div className="tb-btn primary">Live view <span className="k">L</span></div>
             </div>
           </div>

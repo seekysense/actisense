@@ -242,14 +242,13 @@ def test_site_config_is_frozen(cfg: SiteConfig) -> None:
 # ---------------------------------------------------------------------------
 
 def test_env_values_loaded(cfg: SiteConfig) -> None:
-    assert cfg.embedding_service_url  # non vuoto
+    assert cfg.embedding_base_url  # non vuoto
     assert cfg.llm_base_url
     assert cfg.llm_vision_model
     assert cfg.axis_default_user
     assert cfg.axis_default_pass
     assert isinstance(cfg.frame_size_embedder, int)
     assert isinstance(cfg.frame_size_llm, int)
-    assert isinstance(cfg.frame_sample_count, int)
 
 
 # ---------------------------------------------------------------------------

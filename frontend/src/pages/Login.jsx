@@ -19,9 +19,9 @@ export function Login({ onLogin }) {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <div className="login-brand-dot" />
+          <img src="/logo.svg" className="site-brand-logo" alt="" />
           <div>
-            <div className="login-brand-name">ActiSense</div>
+            <div className="login-brand-name">H4H Visual AI</div>
             <div className="login-brand-tag">Operations Console</div>
           </div>
         </div>

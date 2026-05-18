@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1
+FROM python:3.11-slim AS base
+
+# System libs required by opencv-python-headless and ffmpeg
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libglib2.0-0 \
+        libgl1 \
+        ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python dependencies (cached layer — invalidated only when requirements change)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code (no embedder, no data, no logs)
+COPY engine/    engine/
+COPY config/    config/
+COPY api/       api/
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+CMD ["python", "-m", "engine.main", "--config", "config/site.yaml"]

@@ -17,7 +17,13 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
 # Terminal 2 — batch
 source .venv/bin/activate
+
+# Terminal 3 — local embedder
+python3 server_qwen.py 
 ```
+
+
+
 
 ---
 

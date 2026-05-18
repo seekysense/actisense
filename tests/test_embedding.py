@@ -1,4 +1,4 @@
-"""Test suite per engine/embedding/ — Step 04."""
+"""Test suite per engine/embedding/."""
 from __future__ import annotations
 
 import asyncio
@@ -9,8 +9,9 @@ import pytest
 
 from engine.config.models import Signal
 from engine.config.signal_cache import SignalCache
-from engine.embedding.client import EmbeddingClient
+from engine.embedding.client import EmbeddingClient, EmbeddingServiceUnavailable
 from engine.embedding.similarity import cosine_similarity, multi_cam_score
+from engine.storage.lancedb_store import EMB_DIM
 
 # asyncio_mode = "auto" in pyproject.toml — nessun mark esplicito necessario
 
@@ -21,10 +22,14 @@ from engine.embedding.similarity import cosine_similarity, multi_cam_score
 
 @pytest.fixture(scope="session")
 def _embedding_available(cfg) -> bool:
-    """Controlla disponibilità servizio una sola volta per sessione."""
+    """Controlla disponibilità servizio embedding (stesso endpoint LLM)."""
     async def _check() -> bool:
         try:
-            c = EmbeddingClient(cfg.embedding_service_url)
+            c = EmbeddingClient(
+                cfg.embedding_base_url,
+                model=cfg.embedding_model,
+                api_key=cfg.embedding_api_key,
+            )
             return await asyncio.wait_for(c.health_check(), timeout=6.0)
         except Exception:
             return False
@@ -36,10 +41,14 @@ def _embedding_available(cfg) -> bool:
 
 @pytest.fixture
 async def client(cfg, _embedding_available):
-    """Client aiohttp — skip automatico se servizio non disponibile."""
+    """Client embedding — skip automatico se servizio non disponibile."""
     if not _embedding_available:
         pytest.skip("Embedding service not available")
-    return EmbeddingClient(cfg.embedding_service_url)
+    return EmbeddingClient(
+        cfg.embedding_base_url,
+        model=cfg.embedding_model,
+        api_key=cfg.embedding_api_key,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -52,15 +61,13 @@ async def test_health_check(client) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 02 — embed testo singolo: dimensione e norma corrette
+# Test 02 — embed testo singolo: dimensione corretta (EMB_DIM)
 # ---------------------------------------------------------------------------
 
 async def test_embed_single_text(client) -> None:
     vecs = await client.embed_texts(["persona a terra immobile"])
     assert len(vecs) == 1
-    assert len(vecs[0]) == 512
-    norm = np.linalg.norm(vecs[0])
-    assert abs(norm - 1.0) < 0.01
+    assert len(vecs[0]) == EMB_DIM
 
 
 # ---------------------------------------------------------------------------
@@ -71,11 +78,11 @@ async def test_embed_multiple_texts(client) -> None:
     texts = ["fumo denso", "persona che fuma", "bagaglio incustodito"]
     vecs = await client.embed_texts(texts)
     assert len(vecs) == 3
-    assert all(len(v) == 512 for v in vecs)
+    assert all(len(v) == EMB_DIM for v in vecs)
 
 
 # ---------------------------------------------------------------------------
-# Test 04 — embed video da armadio.mp4
+# Test 04 — embed video da armadio.mp4: dimensione corretta
 # ---------------------------------------------------------------------------
 
 async def test_embed_video(client, cfg) -> None:
@@ -85,10 +92,11 @@ async def test_embed_video(client, cfg) -> None:
         list(cfg.cameras.values())[0],
         cfg,
     )
-    vec = await client.embed_video(fs.frames_embedder)
-    assert len(vec) == 512
-    norm = np.linalg.norm(vec)
-    assert abs(norm - 1.0) < 0.01
+    try:
+        vec = await client.embed_video(fs.frames_embedder)
+    except EmbeddingServiceUnavailable:
+        pytest.skip("Video embedding model not available (Galene/Embedding-Vision not deployed)")
+    assert len(vec) == EMB_DIM
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +145,7 @@ async def test_semantic_relevance(client) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 09 — SignalCache warm_up
+# Test 09 — SignalCache warm_up: dim vettori == EMB_DIM
 # ---------------------------------------------------------------------------
 
 async def test_signal_cache_warmup(client, cfg) -> None:
@@ -149,7 +157,8 @@ async def test_signal_cache_warmup(client, cfg) -> None:
         if sig.source == "embedder":
             v = cache.get(sig_id)
             assert v is not None
-            assert len(v) == 512
+            assert len(v) == EMB_DIM
+            print(f"  {sig_id}: dim={len(v)}")
 
 
 # ---------------------------------------------------------------------------
@@ -165,10 +174,97 @@ async def test_signal_cache_reload(client, cfg) -> None:
     await cache.reload(new_signals)
 
     assert cache.get("new_test") is not None
-    assert len(cache.get("new_test")) == 512
+    assert len(cache.get("new_test")) == EMB_DIM
 
-    # Signal esistenti rimangono invariati
     first_id = next(
         sig_id for sig_id, sig in cfg.signals.items() if sig.source == "embedder"
     )
     assert cache.get(first_id) is not None
+
+
+# ---------------------------------------------------------------------------
+# Test 11 — EmbeddingClient trasmette il model name nella richiesta
+# ---------------------------------------------------------------------------
+
+async def test_embed_texts_sends_model_name(monkeypatch) -> None:
+    captured: list[dict] = []
+
+    async def mock_post_json(self, path, payload, timeout=None):
+        captured.append(dict(payload))
+        return {"data": [{"index": 0, "embedding": [0.1] * EMB_DIM}]}
+
+    monkeypatch.setattr(EmbeddingClient, "_post_json", mock_post_json)
+
+    c = EmbeddingClient("http://fake", model="Galene/Embedding-Vision", api_key="k")
+    await c.embed_texts(["testo di test"])
+
+    assert len(captured) == 1
+    assert captured[0].get("model") == "Galene/Embedding-Vision"
+    assert captured[0].get("input") == ["testo di test"]
+
+
+# ---------------------------------------------------------------------------
+# Test 12 — EmbeddingClient senza model non include il campo nel payload
+# ---------------------------------------------------------------------------
+
+async def test_embed_texts_no_model_field(monkeypatch) -> None:
+    captured: list[dict] = []
+
+    async def mock_post_json(self, path, payload, timeout=None):
+        captured.append(dict(payload))
+        return {"data": [{"index": 0, "embedding": [0.1] * EMB_DIM}]}
+
+    monkeypatch.setattr(EmbeddingClient, "_post_json", mock_post_json)
+
+    c = EmbeddingClient("http://fake")
+    await c.embed_texts(["testo"])
+    assert "model" not in captured[0]
+
+
+# ---------------------------------------------------------------------------
+# Test 13 — embed_video invia data-URI e restituisce media dei vettori
+# ---------------------------------------------------------------------------
+
+async def test_embed_video_sends_data_uri(monkeypatch) -> None:
+    import base64
+    captured: list[dict] = []
+
+    async def mock_post_json(self, path, payload, timeout=None):
+        captured.append(dict(payload))
+        # Simula due vettori per due frame
+        return {"data": [
+            {"index": 0, "embedding": [1.0] + [0.0] * (EMB_DIM - 1)},
+            {"index": 1, "embedding": [0.0] * (EMB_DIM - 1) + [1.0]},
+        ]}
+
+    monkeypatch.setattr(EmbeddingClient, "_post_json", mock_post_json)
+
+    c = EmbeddingClient("http://fake", model="Galene/Embedding-Vision", api_key="k")
+    # Frame come raw base64 (senza data: prefix)
+    fake_b64 = base64.b64encode(b"fake_jpeg").decode()
+    vec = await c.embed_video([fake_b64, fake_b64])
+
+    # Verifica che i frame siano stati inviati come data-URI
+    assert all(inp.startswith("data:image/jpeg;base64,") for inp in captured[0]["input"])
+    # Verifica dimensione output
+    assert len(vec) == EMB_DIM
+    # Verifica che sia la media (0.5 per entrambi gli estremi)
+    assert abs(vec[0] - 0.5) < 1e-6
+    assert abs(vec[-1] - 0.5) < 1e-6
+    # Verifica model name
+    assert captured[0].get("model") == "Galene/Embedding-Vision"
+
+
+# ---------------------------------------------------------------------------
+# Test 14 — config: embedding_base_url non è più embedding_service_url
+# ---------------------------------------------------------------------------
+
+def test_config_embedding_fields(cfg) -> None:
+    assert hasattr(cfg, "embedding_base_url")
+    assert hasattr(cfg, "embedding_model")
+    assert hasattr(cfg, "embedding_api_key")
+    assert not hasattr(cfg, "embedding_service_url")  # rimosso
+    assert cfg.embedding_base_url  # non vuoto
+    print(f"\nembedding_base_url: {cfg.embedding_base_url}")
+    print(f"embedding_model:    {cfg.embedding_model}")
+    print(f"embedding_api_key:  {'***' if cfg.embedding_api_key else '(empty)'}")

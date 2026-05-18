@@ -4,6 +4,7 @@ import { Login } from "./pages/Login.jsx";
 import { Dashboard } from "./pages/Dashboard.jsx";
 import { Events } from "./pages/Events.jsx";
 import { Config } from "./pages/Config.jsx";
+import { Setup } from "./pages/Setup.jsx";
 import "./index.css";
 
 function NavBar({ username, onLogout }) {
@@ -69,6 +70,14 @@ export function App() {
             </RequireAuth>
           }
         />
+        <Route
+          path="/setup"
+          element={
+            <RequireAuth token={token}>
+              <Setup username={username} onLogout={logout} />
+            </RequireAuth>
+          }
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
@@ -87,7 +96,7 @@ function PageShell({ children, username, onLogout }) {
         gap: 24,
       }}>
         <Link to="/" style={{ color: "var(--accent)", fontWeight: 600, textDecoration: "none", fontSize: 14 }}>
-          ← ActiSense
+          ← H4H
         </Link>
         <Link to="/events" style={{ color: "var(--ink-3)", textDecoration: "none", fontSize: 13 }}>Events</Link>
         <Link to="/config" style={{ color: "var(--ink-3)", textDecoration: "none", fontSize: 13 }}>Config</Link>

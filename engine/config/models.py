@@ -10,6 +10,18 @@ from typing import Literal
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
+class WebhookEndpoint(BaseModel):
+    url: str
+    retries: int = Field(default=3, ge=0, le=10)
+
+
+class SignalWebhook(BaseModel):
+    """Per-action webhook endpoints attached to a signal."""
+    notify: WebhookEndpoint | None = None          # fires when effective action == notify
+    alarm_primary: WebhookEndpoint | None = None   # first attempt when action == alarm
+    alarm_fallback: WebhookEndpoint | None = None  # used if alarm_primary exhausts retries
+
+
 class Signal(BaseModel):
     id: str
     name: str | None = None
@@ -24,6 +36,7 @@ class Signal(BaseModel):
     time_filter: dict | None = None       # {"from": "HH:MM", "to": "HH:MM"}
     zone: list[str] | None = None         # zone ROI (stringa singola o lista)
     temporal_context_sec: int = 0         # secondi di contesto prima/dopo per LLM (0 = disabilitato)
+    webhook: SignalWebhook | None = None  # webhook delivery config per action level
 
     @field_validator("zone", mode="before")
     @classmethod
@@ -82,6 +95,7 @@ class Area(BaseModel):
     alert_cooldown_sec: int | None = None
     cameras: list[str] = Field(default_factory=list)
     signals: list[AreaSignal] = Field(default_factory=list)
+    webhook_url: str | None = None
 
 
 class Site(BaseModel):
@@ -90,6 +104,7 @@ class Site(BaseModel):
     type: str
     signal_library: list[str] = Field(default_factory=list)
     alert_cooldown_sec: int = 300
+    webhook_url: str | None = None
 
 
 class SiteConfig(BaseModel):
@@ -107,8 +122,9 @@ class SiteConfig(BaseModel):
     embed_window_sec: int      # durata finestra embedding (secondi)
     embed_max_windows: int     # finestre embedding massime per zona (0 = tutte)
     embed_min_frame_diff: float  # variazione minima fra frame consecutivi (0.0–1.0)
+    embed_top_k: int           # frame top-k per aggregazione score (1 = max assoluto)
     llm_max_calls: int         # chiamate LLM massime per clip
-    embedding_service_url: str
+    embedding_base_url: str     # EMBEDDING_BASE_URL, fallback su LLM_BASE_URL
     llm_base_url: str
     llm_vision_model: str
     axis_default_user: str
@@ -120,7 +136,11 @@ class SiteConfig(BaseModel):
     queue_max_workers: int
     queue_max_depth: int
     log_level: str
-    llm_thinking: bool          # enable_thinking passato a extra_body
+    llm_thinking: bool          # enable_thinking passato a extra_body in chat/completions
+    llm_use_reasoning: bool     # usa /v1/responses con enable_thinking=true (LLM_USEREASONING)
+    embedding_model: str        # nome modello embedding (es. Galene/Embedding-Vision)
+    emb_context_window: int     # context window del modello embedding (token)
+    embedding_api_key: str      # bearer token per servizio embedding autenticato (EMBEDDING_API_KEY)
 
     def cameras_for_area(self, area_id: str) -> list[Camera]:
         """Restituisce Camera objects per le cam associate all'area."""

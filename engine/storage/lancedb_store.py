@@ -16,6 +16,11 @@ import pyarrow as pa
 if TYPE_CHECKING:
     from engine.intelligence.llm_vision_client import LLMVerdict
 
+# Dimensione vettori embedding — deve corrispondere al modello configurato in EMBEDDING_MODEL.
+# Galene/Embedding-Vision (Qwen3-VL-Embedding-2B): 2048 dim.
+# Se si cambia modello, eliminare il db LanceDB (data/lancedb/) e ricreare.
+EMB_DIM = 2048
+
 try:
     import structlog
     log = structlog.get_logger(__name__)
@@ -40,7 +45,7 @@ EVENTS_SCHEMA = pa.schema([
     pa.field("llm_verdict_description",  pa.string()),
     pa.field("llm_verdict_confidence",   pa.float32()),
     pa.field("clip_path",                pa.string()),
-    pa.field("embedding",                pa.list_(pa.float32(), 512)),
+    pa.field("embedding",                pa.list_(pa.float32(), EMB_DIM)),
 ])
 
 STATS_SCHEMA = pa.schema([
@@ -120,7 +125,7 @@ class LanceDBStore:
             "clip_path":              [event.clip_path],
             "embedding":              pa.array(
                 [event.embedding],
-                type=pa.list_(pa.float32(), 512),
+                type=pa.list_(pa.float32(), EMB_DIM),
             ),
         })
         await tbl.add(batch)

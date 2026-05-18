@@ -35,9 +35,9 @@ except ImportError:
     import logging
     log = logging.getLogger(__name__)  # type: ignore
 
-_MAX_FRAMES_SIMPLE   = 5   # frame della finestra corrente senza contesto temporale
-_MAX_FRAMES_TEMPORAL = 3   # frame della finestra corrente in modalità temporale
-_MAX_CONTEXT_FRAMES  = 2   # frame per sezione BEFORE e AFTER
+_MAX_FRAMES_SIMPLE   = 8   # frame della finestra corrente senza contesto temporale
+_MAX_FRAMES_TEMPORAL = 4   # frame della finestra corrente in modalità temporale
+_MAX_CONTEXT_FRAMES  = 2   # frame per sezione BEFORE e AFTER (2+4+2 = 8 totali, limite server = 9)
 
 _DEFAULT_SEND_SIZE    = 336  # px — dimensione invio (override: LLM_FRAME_SIZE_SEND)
 _DEFAULT_SEND_QUALITY = 80   # JPEG quality invio (override: LLM_JPEG_QUALITY_SEND)
@@ -111,6 +111,7 @@ class LLMVisionClient:
         send_frame_size: int = _DEFAULT_SEND_SIZE,
         send_jpeg_quality: int = _DEFAULT_SEND_QUALITY,
         enable_thinking: bool = False,
+        use_reasoning: bool = False,
     ) -> None:
         self._base_url          = base_url.rstrip("/")
         self._api_key           = api_key
@@ -119,6 +120,7 @@ class LLMVisionClient:
         self._send_frame_size   = send_frame_size
         self._send_jpeg_quality = send_jpeg_quality
         self._enable_thinking   = enable_thinking
+        self._use_reasoning     = use_reasoning
 
     def _compress_frame(self, b64_str: str) -> str:
         """
@@ -206,6 +208,68 @@ class LLMVisionClient:
         return content
 
     async def _call_openai(self, content: list[dict]) -> str:
+        """POST /chat/completions e restituisce il testo della prima scelta.
+
+        Quando use_reasoning=True e il payload non contiene immagini, usa il
+        /responses endpoint (enable_thinking top-level). Se il server risponde
+        5xx (es. immagini non supportate), ricade su /chat/completions.
+        """
+        has_images = any(item.get("type") == "image_url" for item in content)
+
+        if self._use_reasoning and not has_images:
+            try:
+                return await self._call_responses(content)
+            except aiohttp.ClientResponseError as exc:
+                if exc.status >= 500:
+                    log.warning("responses_endpoint_error_fallback",
+                                status=exc.status, reason="falling back to chat/completions")
+                else:
+                    raise
+
+        return await self._call_chat_completions(content)
+
+    async def _call_responses(self, content: list[dict]) -> str:
+        """POST /responses con enable_thinking=true (OpenAI Responses API).
+
+        Converte il content array (solo testo) nel formato input per l'API responses.
+        Il content viene unito in una stringa unica — il server accetta solo testo plain.
+        Risposta in output[N].content[M].text (type=output_text).
+        """
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
+        # Unisci tutti i blocchi testo in una stringa; ignora immagini (non supportate)
+        text_parts = [
+            item["text"]
+            for item in content
+            if item.get("type") == "text" and item.get("text")
+        ]
+        merged_text = "\n".join(text_parts)
+        payload: dict = {
+            "model": self._model,
+            "input": [{"role": "user", "content": merged_text}],
+            "enable_thinking": True,
+            # Il reasoning consuma molti token — lasciare spazio sufficiente per l'output
+            "max_output_tokens": 32000,
+        }
+        timeout = aiohttp.ClientTimeout(total=self._timeout)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(
+                f"{self._base_url}/responses",
+                headers=headers,
+                json=payload,
+            ) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                # output[N].content[M].text dove type="output_text"
+                for item in data.get("output", []):
+                    for part in item.get("content", []):
+                        if part.get("type") == "output_text":
+                            return part.get("text", "")
+                return ""
+
+    async def _call_chat_completions(self, content: list[dict]) -> str:
         """POST /chat/completions e restituisce il testo della prima scelta."""
         headers = {
             "Authorization": f"Bearer {self._api_key}",
@@ -215,7 +279,7 @@ class LLMVisionClient:
             "model": self._model,
             "messages": [{"role": "user", "content": content}],
             "temperature": 0.1,
-            "max_tokens": 1024,
+            "max_tokens": 32000,
             "extra_body": {"enable_thinking": self._enable_thinking},
         }
         timeout = aiohttp.ClientTimeout(total=self._timeout)

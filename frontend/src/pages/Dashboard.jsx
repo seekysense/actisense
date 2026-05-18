@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api/client.js";
 import { useAlerts } from "../hooks/useAlerts.js";
 import { Sidebar } from "../components/Sidebar.jsx";
@@ -86,6 +87,7 @@ function toISODate(d) {
 }
 
 export function Dashboard({ username, onLogout }) {
+  const navigate = useNavigate();
   const [config, setConfig] = useState(null);
   const [historicEvents, setHistoricEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -305,6 +307,9 @@ export function Dashboard({ username, onLogout }) {
                 onClick={toggleWeekView}
               >
                 Week
+              </button>
+              <button className="tb-btn" onClick={() => navigate("/setup")} title="Setup">
+                <span className="mi" style={{ fontSize: 16 }}>tune</span>Setup
               </button>
               {isViewingToday && <div className="tb-btn primary">Live</div>}
             </div>

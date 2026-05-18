@@ -1,7 +1,15 @@
 """
-Client HTTP asincrono per il servizio embedding InternVideo2.
-Supporta: health_check, embed_texts (/v1/embeddings),
-embed_video (/v1/video_embeddings). Retry su errori 5xx.
+Client HTTP asincrono per il servizio embedding multimodale (OpenAI-compatible).
+
+Usa lo stesso endpoint/API-key del LLM (LLM_BASE_URL + EMBEDDING_API_KEY).
+Supporta: health_check (/v1/models), embed_texts, embed_video.
+
+embed_texts  → POST /embeddings  input=["testo1", ...]
+embed_video  → POST /embeddings  input=["data:image/jpeg;base64,...", ...] (un URI per frame)
+               restituisce la media dei vettori per ottenere un vettore clip.
+
+Retry su 5xx (2 tentativi). Non solleva mai EmbeddingError silenziosamente
+— lascia propagare l'eccezione al chiamante che decide il comportamento.
 """
 from __future__ import annotations
 
@@ -20,7 +28,7 @@ except ImportError:
 
 
 class EmbeddingServiceUnavailable(RuntimeError):
-    """Raised quando /health fallisce 3 volte consecutive."""
+    """Raised quando il servizio non risponde dopo i tentativi previsti."""
 
 
 class EmbeddingError(RuntimeError):
@@ -28,15 +36,29 @@ class EmbeddingError(RuntimeError):
 
 
 class EmbeddingClient:
-    def __init__(self, base_url: str, timeout: float = 30.0) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        timeout: float = 30.0,
+        model: str = "",
+        api_key: str = "",
+    ) -> None:
         self._base_url = base_url.rstrip("/")
-        self._timeout = timeout
+        self._timeout  = timeout
+        self._model    = model
+        self._api_key  = api_key
         self._connector = aiohttp.TCPConnector(limit=10)
         self._session: aiohttp.ClientSession | None = None
 
     def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(connector=self._connector)
+            headers: dict[str, str] = {}
+            if self._api_key:
+                headers["Authorization"] = f"Bearer {self._api_key}"
+            self._session = aiohttp.ClientSession(
+                connector=self._connector,
+                headers=headers,
+            )
         return self._session
 
     async def close(self) -> None:
@@ -48,8 +70,8 @@ class EmbeddingClient:
     # ------------------------------------------------------------------
 
     async def health_check(self) -> bool:
-        """GET /health — True se status == 'ok'. Retry 3x ogni 2s."""
-        url = f"{self._base_url}/health"
+        """GET /v1/models — True se il modello embedding è disponibile."""
+        url = f"{self._base_url}/models"
         t = aiohttp.ClientTimeout(total=5.0)
         last_exc: Exception | None = None
         for attempt in range(3):
@@ -57,7 +79,11 @@ class EmbeddingClient:
                 async with self._get_session().get(url, timeout=t) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        return data.get("status") == "ok"
+                        models = [m.get("id", "") for m in data.get("data", [])]
+                        if self._model and self._model not in models:
+                            log.warning("embedding_model_not_listed",
+                                        model=self._model, available=models)
+                        return resp.status == 200
                     return False
             except Exception as exc:
                 last_exc = exc
@@ -69,11 +95,14 @@ class EmbeddingClient:
         ) from last_exc
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        """POST /v1/embeddings — lista di vettori float normalizzati L2."""
+        """POST /embeddings con input testuale — lista di vettori L2-normalizzati."""
         async with trace_embedding(kind="text", input_size=len(texts),
                                    model_url=self._base_url) as span_data:
             try:
-                data = await self._post_json("/v1/embeddings", {"input": texts})
+                payload: dict = {"input": texts}
+                if self._model:
+                    payload["model"] = self._model
+                data = await self._post_json("/embeddings", payload)
                 items = sorted(data["data"], key=lambda x: x["index"])
                 result = [item["embedding"] for item in items]
                 if result:
@@ -83,22 +112,47 @@ class EmbeddingClient:
                 span_data["error"] = str(exc)
                 raise
 
-    async def embed_video(self, frames_b64: list[str]) -> list[float]:
-        """POST /v1/video_embeddings — singolo vettore float normalizzato."""
-        async with trace_embedding(kind="video", input_size=len(frames_b64),
+    async def embed_frames(self, frames_b64: list[str]) -> list[list[float]]:
+        """POST /embeddings con frame come data-URI JPEG.
+
+        Restituisce un vettore per frame (nessuna aggregazione).
+        Usato per per-frame cosine similarity con top-k aggregation.
+        """
+        async with trace_embedding(kind="frames", input_size=len(frames_b64),
                                    model_url=self._base_url) as span_data:
             try:
+                inputs = [
+                    f"data:image/jpeg;base64,{b64}" if not b64.startswith("data:")
+                    else b64
+                    for b64 in frames_b64
+                ]
+                payload: dict = {"input": inputs}
+                if self._model:
+                    payload["model"] = self._model
                 data = await self._post_json(
-                    "/v1/video_embeddings",
-                    {"frames": frames_b64},
-                    timeout=self._timeout,
+                    "/embeddings", payload, timeout=self._timeout
                 )
-                result = data["data"][0]["embedding"]
-                span_data["vector_dim"] = len(result)
-                return result
+                items = sorted(data["data"], key=lambda x: x["index"])
+                vecs = [item["embedding"] for item in items]
+                if vecs:
+                    span_data["vector_dim"] = len(vecs[0])
+                return vecs
             except Exception as exc:
                 span_data["error"] = str(exc)
                 raise
+
+    async def embed_video(self, frames_b64: list[str]) -> list[float]:
+        """POST /embeddings con frame come data-URI JPEG.
+
+        Restituisce la media dei vettori (un vettore per clip).
+        Mantenuto per compatibilità; preferire embed_frames() + top-k.
+        """
+        vecs = await self.embed_frames(frames_b64)
+        if not vecs:
+            raise ValueError("embed_video: nessun frame ricevuto")
+        dim = len(vecs[0])
+        avg = [sum(v[i] for v in vecs) / len(vecs) for i in range(dim)]
+        return avg
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -120,15 +174,16 @@ class EmbeddingClient:
                             log.warning("embedding_5xx_retry", url=url, status=resp.status)
                             await asyncio.sleep(2)
                             continue
-                        raise EmbeddingError(f"Server error HTTP {resp.status} from {url}")
+                        raise EmbeddingServiceUnavailable(
+                            f"Embedding service error HTTP {resp.status} from {url}"
+                        )
                     resp.raise_for_status()
                     return await resp.json()
-            except EmbeddingError:
+            except (EmbeddingError, EmbeddingServiceUnavailable):
                 raise
             except aiohttp.ClientResponseError as exc:
                 raise EmbeddingError(f"HTTP error {exc.status}: {exc.message}") from exc
             except aiohttp.ClientConnectionError as exc:
-                # Network-level failure (connection refused, DNS error…)
                 if attempt == 0:
                     log.warning("embedding_connection_retry", url=url, error=str(exc))
                     await asyncio.sleep(2)

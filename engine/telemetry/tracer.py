@@ -17,7 +17,7 @@ from typing import Any, AsyncGenerator
 _log = logging.getLogger(__name__)
 
 PHOENIX_ENDPOINT = os.getenv("PHOENIX_ENDPOINT", "http://localhost:6006")
-PHOENIX_PROJECT  = os.getenv("PHOENIX_PROJECT",  "ActiSense")
+PHOENIX_PROJECT  = os.getenv("PHOENIX_PROJECT",  "H4H Visual AI")
 _PROJECT_ROOT    = Path(__file__).resolve().parents[2]
 TRACE_LOG_DIR    = Path(os.getenv("TRACE_LOG_DIR", str(_PROJECT_ROOT / "logs")))
 

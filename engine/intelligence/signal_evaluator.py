@@ -105,22 +105,29 @@ class SignalEvaluator:
         area_id: str,
         area_signals: list[tuple[AreaSignal, Signal]],
         now_time: dt_time | None = None,
+        top_k: int = 1,
     ) -> list[ScoredSignal]:
         """
-        Valuta ogni signal prendendo il MAX score su tutte le finestre temporali del clip.
-        Ogni finestra (embed_fps × embed_window_sec frame) è embeddita separatamente.
+        Valuta ogni signal con per-frame cosine similarity + top-k aggregation.
+
+        Per ogni finestra temporale vengono embedditi i frame individualmente.
+        Lo score del segnale è la media dei top_k punteggi più alti tra tutti
+        i frame di tutte le finestre (top_k=1 → max assoluto).
         """
         windows = frame_set.embed_windows()
         if not windows:
             return []
 
-        window_vecs: list[list[float]] = []
+        # Raccoglie vettori per-frame da tutte le finestre
+        all_frame_vecs: list[list[float]] = []
         for win_frames in windows:
-            vec = await embedding_client.embed_video(win_frames)
-            window_vecs.append(vec)
+            frame_vecs = await embedding_client.embed_frames(win_frames)
+            all_frame_vecs.extend(frame_vecs)
 
+        total_frames = len(all_frame_vecs)
         log.debug("evaluate_windowed", camera_id=camera_id, area_id=area_id,
-                  windows=len(window_vecs), frames_per_window=len(windows[0]))
+                  windows=len(windows), frames_per_window=len(windows[0]),
+                  total_frames=total_frames, top_k=top_k)
 
         results: list[ScoredSignal] = []
         for area_signal, signal in area_signals:
@@ -138,8 +145,13 @@ class SignalEvaluator:
             if text_vec is None:
                 continue
 
-            scores = [cosine_similarity(vec, text_vec) for vec in window_vecs]
-            area_score = max(scores)
+            # Per-frame scores, sorted descending
+            frame_scores = sorted(
+                [cosine_similarity(vec, text_vec) for vec in all_frame_vecs],
+                reverse=True,
+            )
+            k = min(top_k, len(frame_scores))
+            area_score = sum(frame_scores[:k]) / k
 
             threshold = area_signal.effective_threshold(signal)
             action    = area_signal.effective_action(signal)

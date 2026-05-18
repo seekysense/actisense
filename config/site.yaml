@@ -42,6 +42,32 @@ areas:
       - id: eating_drinking
       - id: dog_presence
 
+  - id: lockers
+    name: Hallway Lockers
+    type: indoor_restricted
+    alert_cooldown_sec: 300
+    cameras: [cam_hallway_01]
+    signals:
+      - id: locker_interaction
+
+  - id: parking_lot
+    name: Parking Lot
+    type: outdoor
+    alert_cooldown_sec: 300
+    cameras: [cam_parking_01]
+    signals:
+      - id: vehicle_transit
+      - id: vehicle_loading_unloading
+
+  - id: bike_storage
+    name: Bike Storage
+    type: indoor_restricted
+    alert_cooldown_sec: 300
+    cameras: [cam_bike_storage]
+    signals:
+      - id: bike_transit
+      - id: garage_door_open
+
   - id: entrance
     name: Entrance
     type: indoor_public
@@ -51,7 +77,7 @@ areas:
       - id: person_on_ground
       - id: smoking
       - id: unattended_luggage
-        threshold_override: 0.25
+        threshold_override: 0.44
         escalation_llm_override: true
         llm_prompt_key_override: unattended_bag_entrance
       - id: person_count_stat
@@ -62,7 +88,7 @@ areas:
       - id: door_open
         time_filter: {from: "23:00", to: "05:00"}
         action_override: alarm
-        threshold_override: 0.20
+        threshold_override: 0.40
       - id: person_at_door
       - id: luggage_arrival
       - id: concierge_interaction

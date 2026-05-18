@@ -4,7 +4,7 @@ signals:
     name: "Man Down"
     text: "overhead camera: person lying completely flat on the floor, full body length visible from head to feet, legs fully extended straight, body spread across a large floor area, collapsed and fallen"
     priority: 1
-    default_threshold: 0.12
+    default_threshold: 0.44
     default_action: alarm
     escalation_llm: true
     llm_prompt_key: person_down
@@ -19,7 +19,7 @@ signals:
     name: "Smoking Detected"
     text: "a person holding a cigarette between their fingers, hand raised near their face, thin smoke trail visible"
     priority: 2
-    default_threshold: 0.20
+    default_threshold: 0.60
     default_action: notify
     escalation_llm: true
     llm_prompt_key: smoking_context
@@ -37,7 +37,7 @@ signals:
     name: "Fire/Smoke Detected"
     text: "visible flames or thick dark smoke in the room, fire burning or smoke cloud rising"
     priority: 1
-    default_threshold: 0.10
+    default_threshold: 0.42
     default_action: alarm
     escalation_llm: true
     llm_prompt_key: fire_smoke_context
@@ -55,7 +55,7 @@ signals:
     name: "Unattended Luggage"
     text: "a bag or suitcase left alone on the floor, no person standing next to it"
     priority: 2
-    default_threshold: 0.10
+    default_threshold: 0.43
     default_action: notify
     escalation_llm: true
     llm_prompt_key: unattended_bag
@@ -72,7 +72,7 @@ signals:
     name: "Person Count"
     text: "people present in the area, standing or moving"
     priority: 5
-    default_threshold: 0.40
+    default_threshold: 0.43
     default_action: statistic
     escalation_llm: false
     source: native_axis
@@ -84,7 +84,7 @@ signals:
     name: "Unauthorized Area"
     text: "a person standing at or opening a locked storage unit, accessing items inside"
     priority: 2
-    default_threshold: 0.40
+    default_threshold: 0.43
     default_action: notify
     escalation_llm: true
     zone: cabinet
@@ -93,8 +93,8 @@ signals:
   - id: dog_presence
     name: "Dog Detected"
     text: "a dog or puppy visible in the area, walking on the floor, sitting, or held by a person, fur and four legs clearly identifiable as a canine"
-    priority: 3
-    default_threshold: 0.09
+    priority: 2
+    default_threshold: 0.38
     default_action: notify
     escalation_llm: true
     llm_prompt_key: dog_presence
@@ -109,9 +109,9 @@ signals:
 
   - id: working_with_pc
     name: "Working with PC"
-    text: "a person seated on a sofa or at a table, working on a laptop computer with hands on the keyboard"
-    priority: 4
-    default_threshold: 0.10
+    text: "a person seated on a sofa or at a table in a hotel lounge, working on an open laptop computer with hands on the keyboard, bags or backpack visible nearby, looking at the screen or typing"
+    priority: 5
+    default_threshold: 0.55
     default_action: statistic
     escalation_llm: false
     zone:
@@ -125,10 +125,10 @@ signals:
 
   - id: cleaning_setup
     name: "Cleaning Setup"
-    text: "a person mopping or sweeping the floor, holding a mop or broom with a bucket nearby"
+    text: "hotel cleaning staff holding a long-handled mop or broom sweeping the floor, or crouching to wipe glass surfaces and furniture with a cloth, cleaning equipment visible in the area"
     priority: 3
-    default_threshold: 0.15
-    default_action: notify
+    default_threshold: 0.45
+    default_action: statistic
     escalation_llm: true
     zone:
       - tables
@@ -141,7 +141,7 @@ signals:
     name: "Eating/Drinking"
     text: "a person seated at a table eating food from a plate or drinking from a glass or cup"
     priority: 3
-    default_threshold: 0.10
+    default_threshold: 0.55
     default_action: statistic
     escalation_llm: true
     zone:
@@ -158,7 +158,7 @@ signals:
     name: "Check-in at Desk"
     text: "a person leaning forward with torso bent over a hotel reception counter, both hands resting on the desk surface, upper body inclined close to the front desk"
     priority: 3
-    default_threshold: 0.08
+    default_threshold: 0.43
     default_action: notify
     escalation_llm: true
     llm_prompt_key: checkin_desk_context
@@ -168,7 +168,7 @@ signals:
     name: "Tailgating"
     text: "two people passing through a doorway in immediate close succession, one following directly behind the other without a gap"
     priority: 2
-    default_threshold: 0.30
+    default_threshold: 0.43
     default_action: notify
     escalation_llm: true
     llm_prompt_key: tailgating_context
@@ -179,7 +179,7 @@ signals:
     name: "Forced Entry Attempt"
     text: "a person pushing or pulling hard on a door that does not open, repeatedly attempting to force entry, body leaning against the door frame"
     priority: 1
-    default_threshold: 0.20
+    default_threshold: 0.42
     default_action: alarm
     escalation_llm: true
     llm_prompt_key: door_forced_context
@@ -189,7 +189,7 @@ signals:
     name: "Person at Door"
     text: "a person standing at or passing through a doorway, body framed in the entrance threshold"
     priority: 5
-    default_threshold: 0.25
+    default_threshold: 0.43
     default_action: statistic
     escalation_llm: false
     zone: door
@@ -198,7 +198,7 @@ signals:
     name: "Luggage Arrival"
     text: "a person carrying a travel bag or wheeling a suitcase, luggage clearly visible alongside their body"
     priority: 4
-    default_threshold: 0.20
+    default_threshold: 0.43
     default_action: statistic
     escalation_llm: false
     zone:
@@ -210,7 +210,7 @@ signals:
     name: "Concierge Interaction"
     text: "a person standing or leaning at a reception engaged in a face-to-face interaction"
     priority: 4
-    default_threshold: 0.15
+    default_threshold: 0.43
     default_action: statistic
     escalation_llm: false
     zone: concierge_desk
@@ -219,7 +219,7 @@ signals:
     name: "Person Waiting at Bench"
     text: "a person seated on a bench or waiting chair, remaining still for an extended time"
     priority: 5
-    default_threshold: 0.20
+    default_threshold: 0.43
     default_action: statistic
     escalation_llm: false
     zone: 
@@ -232,30 +232,84 @@ signals:
     name: "Door Open"
     text: "an entrance door swung fully open with the door panel displaced to the side, the open passageway clearly visible and unobstructed, natural exterior light streaming through the open doorway"
     priority: 5
-    default_threshold: 0.25
+    default_threshold: 0.38
     default_action: statistic
     escalation_llm: false
     zone: door
 
+  # Hallway Lockers
+  - id: locker_interaction
+    name: "Locker Interaction"
+    text: "a person leaning forward or crouching beside a wooden locker cabinet in a hotel corridor, reaching a hand toward an electronic keypad or card reader mounted on the locker panel, holding or tapping a key fob, NFC token or access card to unlock a storage compartment, body oriented close to the locker surface with head bowed, viewed from an overhead ceiling camera looking down"
+    priority: 3
+    default_threshold: 0.30
+    default_action: notify
+    escalation_llm: true
+    llm_prompt_key: locker_interaction_context
+    temporal_context_sec: 4
+    zone: lockers
+
+  # Parking Lot
+  - id: vehicle_transit
+    name: "Vehicle Transit"
+    text: "a car, van, motorcycle or other vehicle moving through or parked in the parking area, vehicle body, wheels and headlights clearly visible, the vehicle occupying the roadway or a parking bay"
+    priority: 4
+    default_threshold: 0.35
+    default_action: statistic
+    escalation_llm: false
+    zone: parking
+
+  - id: vehicle_loading_unloading
+    name: "Vehicle Loading/Unloading"
+    text: "a person carrying, lifting or dragging objects, bags, boxes or luggage between a vehicle and the ground, trunk or rear door of the vehicle open, items being transferred to or from the car boot or cargo area"
+    priority: 3
+    default_threshold: 0.35
+    default_action: notify
+    escalation_llm: true
+    llm_prompt_key: vehicle_loading_context
+    temporal_context_sec: 4
+    zone: parking
+
+  # Bike Storage
+  - id: bike_transit
+    name: "Bike Transit"
+    text: "a bicycle being walked or ridden through the area, two large circular wheels clearly visible, handlebars and frame identifiable, the bike occupying floor space as a distinct two-wheeled vehicle separate from any person"
+    priority: 4
+    default_threshold: 0.42
+    default_action: statistic
+    escalation_llm: false
+    zone: bikestorage
+
+  - id: garage_door_open
+    name: "Garage Door Open"
+    text: "a large hinged glass-panel door or gate swung open to the side, the door panel displaced away from its frame revealing a visible gap or open passageway, frosted or translucent glass panels with metal grid frame, entrance accessible"
+    priority: 3
+    default_threshold: 0.35
+    default_action: notify
+    escalation_llm: true
+    llm_prompt_key: garage_door_context
+    temporal_context_sec: 3
+    zone: bikestorage
+
   # Cabinet
   - id: cabinet_opened
     name: "Cabinet Interaction"
-    text: "a person standing directly in front of a storage cabinet, hands touching or gripping the door handle or panel, body facing the cabinet at close range, door opening or being pulled open"
-    priority: 2
-    default_threshold: 0.15
-    default_action: notify
+    text: "a person standing with their back to the camera in front of a tall glass-panel display cabinet with dark wood frame, the glass doors open to reveal wooden shelves stocked with food products, snack boxes, bottles and drinks, person's body close to the open cabinet interior with arm raised or extended toward the shelves, hotel honesty bar or pantry cabinet"
+    priority: 3
+    default_threshold: 0.60
+    default_action: statistic
     escalation_llm: true
     llm_prompt_key: cabinet_interaction_context
-    temporal_context_sec: 3
+    temporal_context_sec: 10
     zone: cabinet
 
   - id: cabinet_taken
     name: "Cabinet Item Taken"
-    text: "a person's hands reaching inside an open cabinet, gripping or removing stored items, objects being extracted and taken away from the cabinet interior"
-    priority: 1
-    default_threshold: 0.15
+    text: "a person with their back to the camera reaching their arm inside an open tall glass display cabinet, hand extended into the interior toward shelves stocked with bottles, snack boxes and food packages, arm crossing past the open glass door frame to grip or retrieve an item from the hotel honesty bar shelves, upright posture in front of the open cabinet"
+    priority: 2
+    default_threshold: 0.38
     default_action: notify
     escalation_llm: true
     llm_prompt_key: cabinet_item_taken_context
-    temporal_context_sec: 4
+    temporal_context_sec: 10
     zone: cabinet

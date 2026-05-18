@@ -1,0 +1,78 @@
+name: vsa
+
+services:
+
+  vsa-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    image: vsa-api:latest
+    platform: linux/arm64
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      SITE_CONFIG_PATH: /app/config/site.yaml
+    volumes:
+      - lancedb_data:/data/lancedb
+      - clips_data:/data/clips
+      - ./config:/app/config          # writable: Config CRUD API writes here
+    networks:
+      - vsa-internal
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  vsa-engine:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.engine
+    image: vsa-engine:latest
+    platform: linux/arm64
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      SITE_CONFIG_PATH: /app/config/site.yaml
+    volumes:
+      - lancedb_data:/data/lancedb
+      - clips_data:/data/clips
+      - ./config:/app/config          # read config; receive SIGHUP reloads
+    networks:
+      - vsa-internal
+    depends_on:
+      vsa-api:
+        condition: service_healthy
+
+  vsa-frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    image: vsa-frontend:latest
+    platform: linux/arm64
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - vsa-internal
+    depends_on:
+      - vsa-api
+
+volumes:
+  lancedb_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${DATA_DIR:-./data}/lancedb    # bind-mount to host path for persistence
+      o: bind
+  clips_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${DATA_DIR:-./data}/clips
+      o: bind
+
+networks:
+  vsa-internal:
+    driver: bridge

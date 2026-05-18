@@ -1,0 +1,27 @@
+id: cam_bike_storage
+name: Bike Storage
+area: bike_storage
+axis_ip: 10.46.67.12
+axis_event_id: ACC_Motion_E827250F9BE4_1
+preprocessing:
+  roi:
+    enabled: true
+    zones:
+    - name: bikestorage
+      polygon:
+      - - 8
+        - 1318
+      - - 1415
+        - 148
+      - - 1539
+        - 446
+      - - 1806
+        - 446
+      - - 1793
+        - 1930
+      - - 16
+        - 1937
+      - - 8
+        - 1318
+      - - 8
+        - 1318

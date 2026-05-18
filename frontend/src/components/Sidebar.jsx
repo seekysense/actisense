@@ -26,10 +26,10 @@ export function Sidebar({
       <aside className={"sidebar " + (open ? "open" : "")}>
         <div className="site-card">
           <div className="site-brand">
-            <div className="site-brand-dot" />
+            <img src="/logo.svg" className="site-brand-logo" alt="" />
             <div>
-              <div className="site-brand-name">ActiSense</div>
-              <div className="site-brand-tag">Operations Console</div>
+              <div className="site-brand-name">H4H Visual AI</div>
+              <div className="site-brand-tag">Beta</div>
             </div>
           </div>
           <div className="site-select">

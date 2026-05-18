@@ -266,3 +266,35 @@ def extract_frames(
         )
     finally:
         cap.release()
+
+
+def extract_raw_frames(
+    clip_path: Path,
+    target_fps: int = 2,
+    max_frames: int = 16,
+    encode_size: int = 224,
+    jpeg_quality: int = 85,
+) -> list[str]:
+    """Extract JPEG frames base64 from a clip without ROI or zone logic.
+    Used by the wizard calibration endpoint to score example clips."""
+    cap = cv2.VideoCapture(str(clip_path))
+    try:
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps   = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        duration = total / fps
+        n = min(max_frames, max(1, round(duration * target_fps)))
+        indices = np.linspace(0, total - 1, n, dtype=int)
+        result: list[str] = []
+        for idx in indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                continue
+            resized = cv2.resize(frame, (encode_size, encode_size),
+                                 interpolation=cv2.INTER_AREA)
+            _, buf = cv2.imencode(".jpg", resized,
+                                  [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality])
+            result.append(base64.b64encode(buf.tobytes()).decode())
+        return result
+    finally:
+        cap.release()

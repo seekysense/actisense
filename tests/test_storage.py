@@ -24,7 +24,7 @@ def make_event(**kwargs) -> Event:
         score=0.65,
         action="notify",
         clip_path="/tmp/test.mp4",
-        embedding=[0.0] * 512,
+        embedding=[0.0] * 2048,
         llm_verdict=None,
     )
     defaults.update(kwargs)

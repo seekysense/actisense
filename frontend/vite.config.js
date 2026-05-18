@@ -13,6 +13,13 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:8000",
         ws: true,
+        configure: (proxy) => {
+          proxy.on("error", (err) => {
+            if (err.code !== "EPIPE" && err.code !== "ECONNREFUSED") {
+              console.error("[proxy]", err.message);
+            }
+          });
+        },
       },
     },
   },

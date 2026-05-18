@@ -45,13 +45,19 @@ async def test_score_above_threshold(signal_cache, cfg) -> None:
     area_id = "kitchen"
     area_signals = cfg.active_signals_for_area(area_id)
 
-    client = EmbeddingClient(cfg.embedding_service_url)
+    client = EmbeddingClient(
+        cfg.embedding_base_url, model=cfg.embedding_model, api_key=cfg.embedding_api_key
+    )
     fs = extract_frames(
         Path("video-test/armadio.mp4"),
         list(cfg.cameras.values())[0],
         cfg,
     )
-    vec = await client.embed_video(fs.frames_embedder)
+    from engine.embedding.client import EmbeddingServiceUnavailable
+    try:
+        vec = await client.embed_video(fs.frames_embedder)
+    except EmbeddingServiceUnavailable:
+        pytest.skip("Video embedding model not available (Galene/Embedding-Vision not deployed)")
     embeddings = {"cam_kitchen_01": vec}
 
     results = await evaluator.evaluate(embeddings, area_id, area_signals)
@@ -112,7 +118,8 @@ async def test_native_axis_signal_excluded(signal_cache, cfg) -> None:
     if not native_signals:
         pytest.skip("Nessun signal native_axis in config kitchen")
 
-    vec = [0.0] * 512
+    from engine.storage.lancedb_store import EMB_DIM
+    vec = [0.0] * EMB_DIM
     results = await evaluator.evaluate({"cam_test": vec}, "kitchen", area_signals)
     result_ids = {r.signal_id for r in results}
     for as_, sig in native_signals:

@@ -176,10 +176,10 @@ def load_config(site_yaml_path: Path) -> SiteConfig:
         raise ConfigError("Missing signals:\n" + "\n".join(missing))
 
     # --- Leggi variabili .env con fallback multipli e default ---
+    # EMBEDDING_BASE_URL ha priorità; fallback a LLM_BASE_URL se non specificato
     embedding_url = (
-        os.getenv("EMBEDDING_SERVICE_URL")
-        or os.getenv("LLM_EMBEDDING_URL")
-        or "http://localhost:6756"
+        os.getenv("EMBEDDING_BASE_URL")
+        or os.getenv("LLM_BASE_URL", "http://localhost:11434/v1")
     )
     llm_model = (
         os.getenv("FAST_MODEL")
@@ -208,8 +208,9 @@ def load_config(site_yaml_path: Path) -> SiteConfig:
         embed_window_sec=int(os.getenv("EMBED_WINDOW_SEC", "4")),
         embed_max_windows=int(os.getenv("EMBED_MAX_WINDOWS", "5")),
         embed_min_frame_diff=float(os.getenv("EMBED_MIN_FRAME_DIFF", "0.05")),
+        embed_top_k=int(os.getenv("EMBED_TOP_K", "1")),
         llm_max_calls=int(os.getenv("LLM_MAX_CALLS", "5")),
-        embedding_service_url=embedding_url,
+        embedding_base_url=embedding_url,
         llm_base_url=os.getenv("LLM_BASE_URL", "http://localhost:11434/v1"),
         llm_vision_model=llm_model,
         axis_default_user=axis_user,
@@ -222,4 +223,12 @@ def load_config(site_yaml_path: Path) -> SiteConfig:
         queue_max_depth=int(os.getenv("QUEUE_MAX_DEPTH", "100")),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         llm_thinking=os.getenv("LLM_THINKING", "false").lower() == "true",
+        llm_use_reasoning=os.getenv("LLM_USEREASONING", "false").lower() == "true",
+        embedding_model=os.getenv("EMBEDDING_MODEL", ""),
+        emb_context_window=int(os.getenv("EMB_CONTEXT_WINDOW", "8000")),
+        embedding_api_key=(
+            os.getenv("EMBEDDING_API_KEY")
+            or os.getenv("LLM_API_KEY")
+            or ""
+        ),
     )

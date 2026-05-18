@@ -40,31 +40,32 @@ class Notifier:
         self._url = webhook_url
         self._timeout = timeout
 
-    async def send(self, payload: AlertPayload) -> bool:
+    async def send(self, payload: AlertPayload, url: str | None = None) -> bool:
         """POST webhook con action=notify. Ritorna True se 2xx."""
-        return await self._post(payload, headers={})
+        return await self._post(payload, headers={}, url=url or self._url)
 
-    async def send_priority(self, payload: AlertPayload) -> bool:
+    async def send_priority(self, payload: AlertPayload, url: str | None = None) -> bool:
         """POST webhook con action=alarm e header X-Vsa-Priority: critical."""
-        return await self._post(payload, headers={"X-Vsa-Priority": "critical"})
+        return await self._post(payload, headers={"X-Vsa-Priority": "critical"}, url=url or self._url)
 
-    async def _post(self, payload: AlertPayload, headers: dict) -> bool:
+    async def _post(self, payload: AlertPayload, headers: dict, url: str | None = None) -> bool:
+        target_url = url or self._url
         base_headers = {"Content-Type": "application/json"}
         base_headers.update(headers)
         body = json.dumps(dataclasses.asdict(payload))
         timeout = aiohttp.ClientTimeout(total=self._timeout)
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(self._url, data=body, headers=base_headers) as resp:
+                async with session.post(target_url, data=body, headers=base_headers) as resp:
                     if resp.status >= 400:
-                        log.error("webhook_error", status=resp.status, url=self._url)
+                        log.error("webhook_error", status=resp.status, url=target_url)
                         return False
                     log.info("webhook_sent", status=resp.status, action=payload.action,
                              signal_id=payload.signal_id)
                     return True
         except aiohttp.ClientError as exc:
-            log.warning("webhook_unavailable", url=self._url, error=str(exc))
+            log.warning("webhook_unavailable", url=target_url, error=str(exc))
             return False
         except Exception as exc:
-            log.error("webhook_unexpected", url=self._url, error=str(exc))
+            log.error("webhook_unexpected", url=target_url, error=str(exc))
             return False

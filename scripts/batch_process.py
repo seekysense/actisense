@@ -97,6 +97,18 @@ class RecordingResult:
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Webhook URL resolution (mirrors engine/main.py)
+# ---------------------------------------------------------------------------
+
+def _resolve_webhook(area_cfg, cfg, default_url: str) -> str:
+    if area_cfg and getattr(area_cfg, "webhook_url", None):
+        return area_cfg.webhook_url
+    if cfg and getattr(cfg.site, "webhook_url", None):
+        return cfg.site.webhook_url
+    return default_url
+
+
 # Core batch coroutine
 # ---------------------------------------------------------------------------
 
@@ -146,8 +158,12 @@ async def run_batch(
     log.info("Camera=%s  area=%s (%s)", camera_id, area_id, area_cfg.name)
 
     # 2. Signal cache
-    embedding_client = EmbeddingClient(cfg.embedding_service_url, timeout=60.0)
-    log.info("Warming signal cache from %s ...", cfg.embedding_service_url)
+    embedding_client = EmbeddingClient(
+        cfg.embedding_base_url, timeout=60.0,
+        model=cfg.embedding_model, api_key=cfg.embedding_api_key,
+    )
+    log.info("Warming signal cache from %s  model=%s ...",
+             cfg.embedding_base_url, cfg.embedding_model or "(default)")
     try:
         signal_cache = SignalCache(embedding_client, cfg.signals)
         await signal_cache.warm_up()
@@ -186,16 +202,20 @@ async def run_batch(
             api_key=os.getenv("LLM_API_KEY", ""),
             model=cfg.llm_vision_model,
             timeout=float(os.getenv("LLM_TIMEOUT", "280")),
-            send_frame_size=int(os.getenv("LLM_FRAME_SIZE_SEND", "224")),
-            send_jpeg_quality=int(os.getenv("LLM_JPEG_QUALITY_SEND", "50")),
+            send_frame_size=int(os.getenv("LLM_FRAME_SIZE_SEND", "336")),
+            send_jpeg_quality=int(os.getenv("LLM_JPEG_QUALITY_SEND", "80")),
+            enable_thinking=cfg.llm_thinking,
+            use_reasoning=cfg.llm_use_reasoning,
         )
-        log.info("LLM: %s / %s", cfg.llm_base_url, cfg.llm_vision_model)
+        log.info("LLM: %s / %s  thinking=%s  use_reasoning=%s",
+                 cfg.llm_base_url, cfg.llm_vision_model,
+                 cfg.llm_thinking, cfg.llm_use_reasoning)
     else:
         log.info("LLM escalation disabled (--no-llm)")
 
     # 5. Notifier + evaluator
-    webhook_url    = os.getenv("WEBHOOK_DEFAULT_URL", "http://localhost:8000/api/internal/alert")
-    notifier       = Notifier(webhook_url)
+    default_webhook_url = os.getenv("WEBHOOK_DEFAULT_URL", "http://localhost:8000/api/internal/alert")
+    notifier       = Notifier(default_webhook_url)
     evaluator      = SignalEvaluator(signal_cache)
 
     # 6. Build recording list
@@ -336,7 +356,7 @@ async def run_batch(
 
                 z_scored = await evaluator.evaluate_windowed(
                     frame_set, embedding_client, camera_id, area_id,
-                    signal_pairs, now_time=now_time,
+                    signal_pairs, now_time=now_time, top_k=cfg.embed_top_k,
                 )
                 for s in z_scored:
                     result.scored_signals.append({
@@ -387,10 +407,12 @@ async def run_batch(
                 enqueued_at=time.monotonic(),
                 priority=min((sig.priority for _, sig in area_signals), default=3),
             )
+            resolved_url = _resolve_webhook(area_cfg, cfg, default_webhook_url)
             action_results = await router.route(
                 all_scored, job, default_frame_set, cooldown, area_cfg,
                 event_time=rec_time,
                 temporal_context=temporal_ctx,
+                webhook_url=resolved_url,
             )
             for ar in action_results:
                 result.actions_fired.append({
