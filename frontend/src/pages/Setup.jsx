@@ -73,6 +73,9 @@ const setupApi = {
     }
   },
   deleteClip: (id) => req(`/api/setup/signal/clips/${id}`, { method: 'DELETE' }),
+  getPrompts: () => req('/api/config/prompts'),
+  getPromptDetail: (key) => req(`/api/config/prompts/${encodeURIComponent(key)}`),
+  patchPrompt: (key, b) => req(`/api/config/prompts/${encodeURIComponent(key)}`, { method: 'PATCH', body: JSON.stringify(b) }),
 };
 
 // ─── Zone format conversions ─────────────────────────────────────────────────
@@ -124,7 +127,7 @@ function TopNav({ username, onLogout, onHome, breadcrumb }) {
           <span className="mi">arrow_back</span>Dashboard
         </button>
         <span className="setup-topnav-title">
-          H4H Visual AI
+          Frame IQ
           <span className="setup-topnav-crumb">/ Setup{breadcrumb ? ` / ${breadcrumb}` : ''}</span>
         </span>
       </div>
@@ -167,6 +170,14 @@ function Landing({ camerasCount, signalsCount, onPick }) {
           <div className="setup-lc-foot">
             <span className="setup-count-badge">{signalsCount} signals in library</span>
             <button className="tb-btn">Manage Signals<span className="mi">arrow_forward</span></button>
+          </div>
+        </div>
+        <div className="setup-landing-card" onClick={() => onPick('site')}>
+          <div className="setup-lc-icon"><span className="mi">settings</span></div>
+          <h3>Site settings</h3>
+          <p>Edit site metadata and review area camera assignments.</p>
+          <div className="setup-lc-foot">
+            <button className="tb-btn">Open settings<span className="mi">arrow_forward</span></button>
           </div>
         </div>
       </div>
@@ -473,7 +484,7 @@ function RoiEditor({ camera, initialZones, onSave, onCancel }) {
   };
 
   return (
-    <div className="setup-page" style={{ paddingBottom: 0 }}>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px 28px 0', boxSizing: 'border-box' }}>
       <div className="setup-breadcrumb">
         <button onClick={onCancel}>Setup</button><span className="sep">/</span>
         <button onClick={onCancel}>Cameras</button><span className="sep">/</span>
@@ -1424,11 +1435,42 @@ function WebhookSection({ action, state, onChange }) {
 }
 
 // ─── Step 4 — Review ─────────────────────────────────────────────────────────
-function Step4({ state, onChange, existingSignalIds }) {
+function Step4({ state, onChange, existingSignalIds, prompts = [] }) {
   const [editing, setEditing] = useState(null);
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [finalEvalText, setFinalEvalText] = useState('');
+  const [finalEvalOrig, setFinalEvalOrig] = useState('');
+  const [finalEvalLoading, setFinalEvalLoading] = useState(false);
+  const [finalEvalSaving, setFinalEvalSaving] = useState(false);
+  const [finalEvalMsg, setFinalEvalMsg] = useState(null);
   const exists = existingSignalIds.includes(state.signalId) && !state.editingExisting;
   const actionColor = state.action === 'alarm' ? 'var(--sev-alarm)' : state.action === 'notify' ? 'var(--sev-notify)' : 'var(--sev-stat)';
   const actionBg = state.action === 'alarm' ? 'var(--sev-alarm-bg)' : state.action === 'notify' ? 'var(--sev-notify-bg)' : 'var(--sev-stat-bg)';
+  const selectedPrompt = prompts.find(p => p.key === state.llmPromptKey);
+
+  useEffect(() => {
+    if (!state.llmCheck || !state.llmPromptKey) { setFinalEvalText(''); setFinalEvalOrig(''); return; }
+    setFinalEvalLoading(true);
+    setFinalEvalMsg(null);
+    setupApi.getPromptDetail(state.llmPromptKey)
+      .then(d => { const t = d.final_eval || ''; setFinalEvalText(t); setFinalEvalOrig(t); })
+      .catch(() => { setFinalEvalText(''); setFinalEvalOrig(''); })
+      .finally(() => setFinalEvalLoading(false));
+  }, [state.llmPromptKey, state.llmCheck]);
+
+  const saveFinalEval = async () => {
+    setFinalEvalSaving(true);
+    setFinalEvalMsg(null);
+    try {
+      await setupApi.patchPrompt(state.llmPromptKey, { final_eval: finalEvalText || null });
+      setFinalEvalOrig(finalEvalText);
+      setFinalEvalMsg({ ok: true, text: 'Saved' });
+    } catch (e) {
+      setFinalEvalMsg({ ok: false, text: e.message });
+    } finally {
+      setFinalEvalSaving(false);
+    }
+  };
 
   return (
     <div className="setup-wizard-card">
@@ -1478,15 +1520,234 @@ function Step4({ state, onChange, existingSignalIds }) {
           <div style={{ width: 120, fontSize: 12, fontWeight: 500, color: 'var(--ink-3)', flexShrink: 0 }}>Zones</div>
           <span style={{ fontSize: 13 }}>{state.zones.length ? state.zones.join(', ') : '— any —'}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', borderBottom: '1px solid var(--line)' }}>
+        {/* LLM check row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', borderBottom: state.llmCheck ? 'none' : '1px solid var(--line)' }}>
           <div style={{ width: 120, fontSize: 12, fontWeight: 500, color: 'var(--ink-3)', flexShrink: 0 }}>LLM check</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div className={`setup-sw ${state.llmCheck ? 'on' : ''}`} onClick={() => onChange({ llmCheck: !state.llmCheck })} />
+            <div className={`setup-sw ${state.llmCheck ? 'on' : ''}`} onClick={() => onChange({ llmCheck: !state.llmCheck, llmPromptKey: !state.llmCheck ? state.llmPromptKey : '' })} />
             <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>
               {state.llmCheck ? 'Vision LLM will confirm matches above threshold' : 'Recommended for notify and alarm signals'}
             </span>
           </div>
         </div>
+
+        {/* LLM prompt selector — only when llmCheck is on */}
+        {state.llmCheck && (
+          <div style={{ borderBottom: '1px solid var(--line)', background: 'var(--bg)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: '12px 16px' }}>
+              <div style={{ width: 120, fontSize: 12, fontWeight: 500, color: 'var(--ink-3)', flexShrink: 0, paddingTop: 2 }}>
+                LLM prompt
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {/* Current selection summary */}
+                <div
+                  onClick={() => setPromptOpen(v => !v)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 12px',
+                    background: 'var(--surface)', border: `1px solid ${promptOpen ? 'var(--accent)' : 'var(--line-2)'}`,
+                    borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                    transition: 'border-color .12s',
+                  }}
+                >
+                  {state.llmPromptKey ? (
+                    <>
+                      <span className="mi" style={{ fontSize: 16, color: 'var(--accent)', flexShrink: 0 }}>smart_toy</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: 'var(--ink)', fontWeight: 500 }}>
+                          {state.llmPromptKey}
+                        </div>
+                        {selectedPrompt && (
+                          <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {selectedPrompt.preview}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="mi" style={{ fontSize: 16, color: 'var(--ink-4)', flexShrink: 0 }}>auto_awesome</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, color: 'var(--ink-3)', fontStyle: 'italic' }}>
+                          generic fallback — no specific prompt selected
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  <span className="mi" style={{ fontSize: 16, color: 'var(--ink-4)', transition: 'transform .15s', transform: promptOpen ? 'rotate(180deg)' : 'none' }}>
+                    expand_more
+                  </span>
+                </div>
+
+                {/* Prompt picker dropdown */}
+                {promptOpen && (
+                  <div style={{
+                    marginTop: 6, border: '1px solid var(--line-2)',
+                    borderRadius: 'var(--radius-sm)', overflow: 'hidden',
+                    background: 'var(--surface)', boxShadow: 'var(--shadow-md)',
+                    maxHeight: 320, overflowY: 'auto',
+                  }}>
+                    {/* Generic option */}
+                    <div
+                      onClick={() => { onChange({ llmPromptKey: '' }); setPromptOpen(false); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 12px', cursor: 'pointer',
+                        background: !state.llmPromptKey ? 'var(--accent-soft)' : 'transparent',
+                        borderBottom: '1px solid var(--line)',
+                        transition: 'background .1s',
+                      }}
+                      onMouseEnter={e => { if (state.llmPromptKey) e.currentTarget.style.background = 'var(--bg-2)'; }}
+                      onMouseLeave={e => { if (state.llmPromptKey) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <span className="mi" style={{ fontSize: 16, color: !state.llmPromptKey ? 'var(--accent)' : 'var(--ink-4)', flexShrink: 0 }}>
+                        {!state.llmPromptKey ? 'check_circle' : 'auto_awesome'}
+                      </span>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: !state.llmPromptKey ? 'var(--accent-ink)' : 'var(--ink-2)' }}>
+                          generic
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 1 }}>
+                          Uses the default fallback prompt
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Prompt entries grouped by file */}
+                    {(() => {
+                      const byFile = prompts.reduce((acc, p) => {
+                        (acc[p.file] = acc[p.file] || []).push(p);
+                        return acc;
+                      }, {});
+                      return Object.entries(byFile).map(([file, items]) => (
+                        <div key={file}>
+                          <div style={{
+                            padding: '5px 12px', fontSize: 10, fontWeight: 600,
+                            letterSpacing: '.07em', textTransform: 'uppercase',
+                            color: 'var(--ink-4)', background: 'var(--bg-2)',
+                            borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)',
+                          }}>
+                            {file}
+                          </div>
+                          {items.map(p => {
+                            const active = state.llmPromptKey === p.key;
+                            return (
+                              <div
+                                key={p.key}
+                                onClick={() => { onChange({ llmPromptKey: p.key }); setPromptOpen(false); }}
+                                style={{
+                                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                                  padding: '9px 12px', cursor: 'pointer',
+                                  background: active ? 'var(--accent-soft)' : 'transparent',
+                                  borderBottom: '1px solid var(--line)',
+                                  transition: 'background .1s',
+                                }}
+                                onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--bg-2)'; }}
+                                onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+                              >
+                                <span className="mi" style={{ fontSize: 16, color: active ? 'var(--accent)' : 'var(--ink-4)', flexShrink: 0, marginTop: 1 }}>
+                                  {active ? 'check_circle' : 'smart_toy'}
+                                </span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{
+                                    fontFamily: "'Geist Mono', monospace", fontSize: 12, fontWeight: 500,
+                                    color: active ? 'var(--accent-ink)' : 'var(--ink)',
+                                  }}>
+                                    {p.key}
+                                  </div>
+                                  <div style={{
+                                    fontSize: 11, color: 'var(--ink-3)', marginTop: 2,
+                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                  }}>
+                                    {p.preview}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ));
+                    })()}
+
+                    {prompts.length === 0 && (
+                      <div style={{ padding: '14px 12px', fontSize: 12, color: 'var(--ink-4)', fontStyle: 'italic' }}>
+                        No prompt files found in config/signals/prompts/
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* has_final_eval badge on selected prompt summary */}
+                {!promptOpen && state.llmPromptKey && selectedPrompt?.has_final_eval && (
+                  <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span className="mi" style={{ fontSize: 13, color: 'var(--accent)' }}>account_tree</span>
+                    <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 500 }}>Final eval prompt configured</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Final eval prompt editor — shown when a specific prompt key is selected */}
+            {state.llmPromptKey && (
+              <div style={{ borderTop: '1px solid var(--line)', padding: '12px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                  <div style={{ width: 120, fontSize: 12, fontWeight: 500, color: 'var(--ink-3)', flexShrink: 0, paddingTop: 4 }}>
+                    Final eval
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, color: 'var(--ink-4)', marginBottom: 6, lineHeight: 1.5 }}>
+                      Prompt used to aggregate per-window verdicts into a final decision. Leave empty to use the default aggregation logic.
+                    </div>
+                    {finalEvalLoading ? (
+                      <div style={{ fontSize: 12, color: 'var(--ink-4)', fontStyle: 'italic' }}>Loading…</div>
+                    ) : (
+                      <>
+                        <textarea
+                          value={finalEvalText}
+                          onChange={e => { setFinalEvalText(e.target.value); setFinalEvalMsg(null); }}
+                          placeholder={`Leave empty to use the default aggregation prompt.\n\nUse {verdicts_block} in your text to include the per-window verdict list.`}
+                          rows={7}
+                          style={{
+                            width: '100%', boxSizing: 'border-box',
+                            fontFamily: "'Geist Mono', monospace", fontSize: 11,
+                            padding: '8px 10px', resize: 'vertical',
+                            background: 'var(--surface)', color: 'var(--ink)',
+                            border: '1px solid var(--line-2)', borderRadius: 'var(--radius-sm)',
+                            lineHeight: 1.5,
+                          }}
+                        />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+                          <button
+                            className="tb-btn"
+                            disabled={finalEvalSaving || finalEvalText === finalEvalOrig}
+                            onClick={saveFinalEval}
+                            style={{ fontSize: 12, padding: '4px 12px' }}
+                          >
+                            {finalEvalSaving ? 'Saving…' : 'Save final eval'}
+                          </button>
+                          {finalEvalText !== finalEvalOrig && !finalEvalSaving && (
+                            <button
+                              style={{ fontSize: 11, color: 'var(--ink-4)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                              onClick={() => { setFinalEvalText(finalEvalOrig); setFinalEvalMsg(null); }}
+                            >
+                              Revert
+                            </button>
+                          )}
+                          {finalEvalMsg && (
+                            <span style={{ fontSize: 11, color: finalEvalMsg.ok ? 'var(--accent)' : 'var(--sev-alarm)', fontWeight: 500 }}>
+                              {finalEvalMsg.text}
+                            </span>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <WebhookSection action={state.action} state={state} onChange={onChange} />
       </div>
 
@@ -1500,6 +1761,334 @@ function Step4({ state, onChange, existingSignalIds }) {
   );
 }
 
+// ─── SignalEditForm ───────────────────────────────────────────────────────────
+function SignalEditForm({ signal, cameras, zonesByCam, onCancel, onSave }) {
+  const [form, setForm] = useState(() => ({
+    name: signal.name || signal.id,
+    phrase: signal.text,
+    priority: signal.priority,
+    action: signal.default_action,
+    threshold: signal.default_threshold,
+    zones: signal.zone || [],
+    llmCheck: signal.escalation_llm,
+    llmPromptKey: signal.llm_prompt_key || '',
+    webhookNotifyUrl: signal.webhook?.notify?.url || '',
+    webhookAlarmPrimaryUrl: signal.webhook?.alarm_primary?.url || '',
+    webhookAlarmPrimaryRetries: signal.webhook?.alarm_primary?.retries ?? 3,
+    webhookAlarmFallbackUrl: signal.webhook?.alarm_fallback?.url || '',
+    webhookAlarmFallbackRetries: signal.webhook?.alarm_fallback?.retries ?? 2,
+  }));
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [prompts, setPrompts] = useState([]);
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [finalEvalText, setFinalEvalText] = useState('');
+  const [finalEvalOrig, setFinalEvalOrig] = useState('');
+  const [finalEvalLoading, setFinalEvalLoading] = useState(false);
+  const [finalEvalSaving, setFinalEvalSaving] = useState(false);
+  const [finalEvalMsg, setFinalEvalMsg] = useState(null);
+
+  const update = patch => setForm(s => ({ ...s, ...patch }));
+
+  const allZones = useMemo(() => {
+    const names = new Set();
+    for (const cam of cameras) {
+      for (const z of (zonesByCam[cam.id] || [])) {
+        if (z.type === 'include') names.add(z.name);
+      }
+    }
+    return [...names];
+  }, [cameras, zonesByCam]);
+
+  useEffect(() => { setupApi.getPrompts().then(setPrompts).catch(() => {}); }, []);
+
+  useEffect(() => {
+    if (!form.llmCheck || !form.llmPromptKey) { setFinalEvalText(''); setFinalEvalOrig(''); return; }
+    setFinalEvalLoading(true);
+    setFinalEvalMsg(null);
+    setupApi.getPromptDetail(form.llmPromptKey)
+      .then(d => { const t = d.final_eval || ''; setFinalEvalText(t); setFinalEvalOrig(t); })
+      .catch(() => { setFinalEvalText(''); setFinalEvalOrig(''); })
+      .finally(() => setFinalEvalLoading(false));
+  }, [form.llmPromptKey, form.llmCheck]);
+
+  const saveFinalEval = async () => {
+    setFinalEvalSaving(true);
+    setFinalEvalMsg(null);
+    try {
+      await setupApi.patchPrompt(form.llmPromptKey, { final_eval: finalEvalText || null });
+      setFinalEvalOrig(finalEvalText);
+      setFinalEvalMsg({ ok: true, text: 'Saved' });
+    } catch (e) {
+      setFinalEvalMsg({ ok: false, text: e.message });
+    } finally {
+      setFinalEvalSaving(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onSave(signal.id, form);
+    } catch (err) {
+      setSaveError(err.message);
+      setSaving(false);
+    }
+  };
+
+  const canSave = form.name.length >= 2 && form.phrase.length > 0;
+  const selectedPrompt = prompts.find(p => p.key === form.llmPromptKey);
+  const toggleZone = name => update({ zones: form.zones.includes(name) ? form.zones.filter(z => z !== name) : [...form.zones, name] });
+
+  return (
+    <div className="setup-page">
+      <div className="setup-breadcrumb">
+        <button onClick={onCancel}>Setup</button><span className="sep">/</span>
+        <button onClick={onCancel}>Signals</button><span className="sep">/</span>
+        <span className="current">{signal.id}</span>
+      </div>
+      <div className="setup-page-head">
+        <div>
+          <h1 className="setup-page-title">Edit · <span style={{ fontFamily: 'monospace', fontSize: '0.85em' }}>{signal.id}</span></h1>
+          <p className="setup-page-sub">Modify the signal configuration directly.</p>
+        </div>
+      </div>
+
+      <div className="setup-wizard-card" style={{ maxWidth: 760, margin: '0 auto' }}>
+        <div className="setup-form-row">
+          <label className="setup-form-label">Name</label>
+          <input className="setup-form-input" value={form.name}
+            onChange={e => update({ name: e.target.value })}
+            placeholder="Signal display name" />
+        </div>
+
+        <div className="setup-form-row">
+          <label className="setup-form-label">Semantic phrase</label>
+          <textarea className="setup-form-textarea" value={form.phrase}
+            onChange={e => update({ phrase: e.target.value })}
+            placeholder="Embedding-optimized description of the event" />
+        </div>
+
+        <div className="setup-form-row split">
+          <div>
+            <label className="setup-form-label">Priority</label>
+            <div className="setup-pri-pills">
+              {[1, 2, 3, 4, 5].map(p => (
+                <div key={p} className={`setup-pri-pill p${p} ${form.priority === p ? 'on' : ''}`}
+                  onClick={() => update({ priority: p })}>{p}</div>
+              ))}
+            </div>
+            <span className="setup-form-hint">P1 critical · P5 informational</span>
+          </div>
+          <div>
+            <label className="setup-form-label">Action</label>
+            <select className="setup-form-select" value={form.action}
+              onChange={e => update({ action: e.target.value })}>
+              <option value="statistic">statistic — log only</option>
+              <option value="notify">notify — queue for review</option>
+              <option value="alarm">alarm — immediate escalation</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="setup-form-row">
+          <label className="setup-form-label">
+            Threshold <span style={{ fontFamily: 'monospace', marginLeft: 6, color: 'var(--ink)' }}>{form.threshold.toFixed(2)}</span>
+          </label>
+          <input type="range" min={0.10} max={0.90} step={0.01}
+            value={form.threshold}
+            onChange={e => update({ threshold: parseFloat(e.target.value) })}
+            style={{ width: '100%', accentColor: 'var(--accent)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--ink-4)', marginTop: 2 }}>
+            <span>0.10 · sensitive</span><span>strict · 0.90</span>
+          </div>
+        </div>
+
+        {allZones.length > 0 && (
+          <div className="setup-form-row">
+            <label className="setup-form-label">Apply to zones</label>
+            <div className="setup-zone-chips">
+              {allZones.map(name => (
+                <div key={name} className={`setup-zone-chip ${form.zones.includes(name) ? 'on' : ''}`}
+                  onClick={() => toggleZone(name)}>
+                  {form.zones.includes(name) && <span className="mi" style={{ fontSize: 12 }}>check</span>}
+                  {name}
+                </div>
+              ))}
+            </div>
+            {form.zones.length === 0 && (
+              <span className="setup-form-hint">No zones selected — signal applies to any zone</span>
+            )}
+          </div>
+        )}
+
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 8, overflow: 'hidden', margin: '8px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 16px', borderBottom: form.llmCheck ? '1px solid var(--line)' : 'none' }}>
+            <div style={{ width: 120, fontSize: 12, fontWeight: 500, color: 'var(--ink-3)', flexShrink: 0 }}>LLM check</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className={`setup-sw ${form.llmCheck ? 'on' : ''}`}
+                onClick={() => update({ llmCheck: !form.llmCheck, llmPromptKey: !form.llmCheck ? form.llmPromptKey : '' })} />
+              <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+                {form.llmCheck ? 'Vision LLM will confirm matches above threshold' : 'Recommended for notify and alarm signals'}
+              </span>
+            </div>
+          </div>
+
+          {form.llmCheck && (
+            <div style={{ background: 'var(--bg)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: '12px 16px' }}>
+                <div style={{ width: 120, fontSize: 12, fontWeight: 500, color: 'var(--ink-3)', flexShrink: 0, paddingTop: 2 }}>LLM prompt</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    onClick={() => setPromptOpen(v => !v)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 12px',
+                      background: 'var(--surface)', border: `1px solid ${promptOpen ? 'var(--accent)' : 'var(--line-2)'}`,
+                      borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'border-color .12s',
+                    }}
+                  >
+                    {form.llmPromptKey ? (
+                      <>
+                        <span className="mi" style={{ fontSize: 16, color: 'var(--accent)', flexShrink: 0 }}>smart_toy</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: 'var(--ink)', fontWeight: 500 }}>{form.llmPromptKey}</div>
+                          {selectedPrompt && (
+                            <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedPrompt.preview}</div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <span className="mi" style={{ fontSize: 16, color: 'var(--ink-4)', flexShrink: 0 }}>auto_awesome</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, color: 'var(--ink-3)', fontStyle: 'italic' }}>generic fallback — no specific prompt selected</div>
+                        </div>
+                      </>
+                    )}
+                    <span className="mi" style={{ fontSize: 16, color: 'var(--ink-4)', transition: 'transform .15s', transform: promptOpen ? 'rotate(180deg)' : 'none' }}>expand_more</span>
+                  </div>
+
+                  {promptOpen && (
+                    <div style={{
+                      marginTop: 6, border: '1px solid var(--line-2)', borderRadius: 'var(--radius-sm)',
+                      overflow: 'hidden', background: 'var(--surface)', boxShadow: 'var(--shadow-md)',
+                      maxHeight: 320, overflowY: 'auto',
+                    }}>
+                      <div
+                        onClick={() => { update({ llmPromptKey: '' }); setPromptOpen(false); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer', background: !form.llmPromptKey ? 'var(--accent-soft)' : 'transparent', borderBottom: '1px solid var(--line)', transition: 'background .1s' }}
+                        onMouseEnter={e => { if (form.llmPromptKey) e.currentTarget.style.background = 'var(--bg-2)'; }}
+                        onMouseLeave={e => { if (form.llmPromptKey) e.currentTarget.style.background = 'transparent'; }}
+                      >
+                        <span className="mi" style={{ fontSize: 16, color: !form.llmPromptKey ? 'var(--accent)' : 'var(--ink-4)', flexShrink: 0 }}>{!form.llmPromptKey ? 'check_circle' : 'auto_awesome'}</span>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: !form.llmPromptKey ? 'var(--accent-ink)' : 'var(--ink-2)' }}>generic</div>
+                          <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 1 }}>Uses the default fallback prompt</div>
+                        </div>
+                      </div>
+                      {(() => {
+                        const byFile = prompts.reduce((acc, p) => { (acc[p.file] = acc[p.file] || []).push(p); return acc; }, {});
+                        return Object.entries(byFile).map(([file, items]) => (
+                          <div key={file}>
+                            <div style={{ padding: '5px 12px', fontSize: 10, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--ink-4)', background: 'var(--bg-2)', borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}>{file}</div>
+                            {items.map(p => {
+                              const active = form.llmPromptKey === p.key;
+                              return (
+                                <div key={p.key}
+                                  onClick={() => { update({ llmPromptKey: p.key }); setPromptOpen(false); }}
+                                  style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', cursor: 'pointer', background: active ? 'var(--accent-soft)' : 'transparent', borderBottom: '1px solid var(--line)', transition: 'background .1s' }}
+                                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--bg-2)'; }}
+                                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+                                >
+                                  <span className="mi" style={{ fontSize: 16, color: active ? 'var(--accent)' : 'var(--ink-4)', flexShrink: 0, marginTop: 1 }}>{active ? 'check_circle' : 'smart_toy'}</span>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, fontWeight: 500, color: active ? 'var(--accent-ink)' : 'var(--ink)' }}>{p.key}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.preview}</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ));
+                      })()}
+                      {prompts.length === 0 && (
+                        <div style={{ padding: '14px 12px', fontSize: 12, color: 'var(--ink-4)', fontStyle: 'italic' }}>No prompt files found in config/signals/prompts/</div>
+                      )}
+                    </div>
+                  )}
+
+                  {!promptOpen && form.llmPromptKey && selectedPrompt?.has_final_eval && (
+                    <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span className="mi" style={{ fontSize: 13, color: 'var(--accent)' }}>account_tree</span>
+                      <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 500 }}>Final eval prompt configured</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {form.llmPromptKey && (
+                <div style={{ borderTop: '1px solid var(--line)', padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                    <div style={{ width: 120, fontSize: 12, fontWeight: 500, color: 'var(--ink-3)', flexShrink: 0, paddingTop: 4 }}>Final eval</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: 'var(--ink-4)', marginBottom: 6, lineHeight: 1.5 }}>
+                        Prompt used to aggregate per-window verdicts into a final decision. Leave empty to use the default aggregation logic.
+                      </div>
+                      {finalEvalLoading ? (
+                        <div style={{ fontSize: 12, color: 'var(--ink-4)', fontStyle: 'italic' }}>Loading…</div>
+                      ) : (
+                        <>
+                          <textarea value={finalEvalText}
+                            onChange={e => { setFinalEvalText(e.target.value); setFinalEvalMsg(null); }}
+                            placeholder={`Leave empty to use the default aggregation prompt.\n\nUse {verdicts_block} in your text to include the per-window verdict list.`}
+                            rows={7}
+                            style={{ width: '100%', boxSizing: 'border-box', fontFamily: "'Geist Mono', monospace", fontSize: 11, padding: '8px 10px', resize: 'vertical', background: 'var(--surface)', color: 'var(--ink)', border: '1px solid var(--line-2)', borderRadius: 'var(--radius-sm)', lineHeight: 1.5 }}
+                          />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+                            <button className="tb-btn" disabled={finalEvalSaving || finalEvalText === finalEvalOrig} onClick={saveFinalEval} style={{ fontSize: 12, padding: '4px 12px' }}>
+                              {finalEvalSaving ? 'Saving…' : 'Save final eval'}
+                            </button>
+                            {finalEvalText !== finalEvalOrig && !finalEvalSaving && (
+                              <button style={{ fontSize: 11, color: 'var(--ink-4)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                onClick={() => { setFinalEvalText(finalEvalOrig); setFinalEvalMsg(null); }}>Revert</button>
+                            )}
+                            {finalEvalMsg && (
+                              <span style={{ fontSize: 11, color: finalEvalMsg.ok ? 'var(--accent)' : 'var(--sev-alarm)', fontWeight: 500 }}>{finalEvalMsg.text}</span>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 8, overflow: 'hidden', marginBottom: 8 }}>
+          <WebhookSection action={form.action} state={form} onChange={update} />
+        </div>
+      </div>
+
+      {saveError && (
+        <div style={{ maxWidth: 760, margin: '8px auto 0', color: 'var(--sev-alarm)', fontSize: 13, padding: '8px 10px', background: 'var(--sev-alarm-bg)', borderRadius: 6 }}>
+          {saveError}
+        </div>
+      )}
+      <div className="setup-wizard-nav" style={{ maxWidth: 760, margin: '24px auto 48px' }}>
+        <button className="tb-btn" onClick={onCancel}>Cancel</button>
+        <div style={{ flex: 1 }} />
+        <button className="tb-btn primary" disabled={!canSave || saving} onClick={handleSave}>
+          <span className="mi">save</span>{saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── SignalWizard ─────────────────────────────────────────────────────────────
 function SignalWizard({ initial, cameras, zonesByCam, existingSignalIds, startStep, onCancel, onSave }) {
   const [step, setStep] = useState(startStep || 1);
@@ -1508,7 +2097,7 @@ function SignalWizard({ initial, cameras, zonesByCam, existingSignalIds, startSt
     priority: 3, action: 'notify', zones: [],
     camera_id: cameras[0]?.id || '',
     positiveClips: [], negativeClips: [],
-    threshold: 0.45, llmCheck: true,
+    threshold: 0.45, llmCheck: true, llmPromptKey: '',
     editingExisting: false,
     // webhook delivery
     webhookNotifyUrl: '',
@@ -1520,13 +2109,17 @@ function SignalWizard({ initial, cameras, zonesByCam, existingSignalIds, startSt
   }));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [prompts, setPrompts] = useState([]);
 
   const update = patch => setState(s => typeof patch === 'function' ? patch(s) : { ...s, ...patch });
 
   useEffect(() => {
-    if (step === 4 && !state.signalId && state.name) {
-      const id = state.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 32);
-      update({ signalId: id });
+    if (step === 4) {
+      if (!state.signalId && state.name) {
+        const id = state.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 32);
+        update({ signalId: id });
+      }
+      setupApi.getPrompts().then(setPrompts).catch(() => {});
     }
   }, [step]);
 
@@ -1568,7 +2161,7 @@ function SignalWizard({ initial, cameras, zonesByCam, existingSignalIds, startSt
       {step === 1 && <Step1 state={state} onChange={update} cameras={cameras} zonesByCam={zonesByCam} />}
       {step === 2 && <Step2 state={state} onChange={update} cameras={cameras} />}
       {step === 3 && <Step3 state={state} onChange={update} />}
-      {step === 4 && <Step4 state={state} onChange={update} existingSignalIds={existingSignalIds} />}
+      {step === 4 && <Step4 state={state} onChange={update} existingSignalIds={existingSignalIds} prompts={prompts} />}
       {saveError && (
         <div style={{ maxWidth, margin: '8px auto 0', color: 'var(--sev-alarm)', fontSize: 13, padding: '8px 10px', background: 'var(--sev-alarm-bg)', borderRadius: 6 }}>
           {saveError}
@@ -1611,6 +2204,7 @@ export function Setup({ username, onLogout }) {
   const [formError, setFormError] = useState(null);
   const [wizardInit, setWizardInit] = useState(null);
   const [wizardStartStep, setWizardStartStep] = useState(1);
+  const [editingSignal, setEditingSignal] = useState(null);
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
@@ -1640,7 +2234,8 @@ export function Setup({ username, onLogout }) {
     form: formMode === 'new' ? 'Cameras / New' : `Cameras / ${activeCamId}`,
     roi: activeCam ? `Cameras / ${activeCam.id} / ROI` : 'Cameras',
     'signals-list': 'Signals',
-    'signal-wizard': wizardInit?.editingExisting ? `Signals / ${wizardInit.signalId}` : 'Signals / New',
+    'signal-wizard': 'Signals / New',
+    'signal-edit': editingSignal ? `Signals / ${editingSignal.id}` : 'Signals',
   }[view];
 
   const handleCreateCamera = async c => {
@@ -1723,6 +2318,7 @@ export function Setup({ username, onLogout }) {
       default_action: wizState.action,
       default_threshold: wizState.threshold,
       escalation_llm: wizState.llmCheck,
+      llm_prompt_key: wizState.llmCheck && wizState.llmPromptKey ? wizState.llmPromptKey : null,
       zone: wizState.zones.length > 0 ? wizState.zones : null,
       source: 'embedder',
       cooldown_sec: 300,
@@ -1750,22 +2346,24 @@ export function Setup({ username, onLogout }) {
     }
   };
 
-  const buildWizardFromSignal = s => ({
-    signalId: s.id, name: s.name || s.id,
-    description: s.text, phrase: s.text,
-    priority: s.priority, action: s.default_action,
-    zones: s.zone || [],
-    camera_id: cameras[0]?.id || '',
-    threshold: s.default_threshold,
-    llmCheck: s.escalation_llm,
-    editingExisting: true,
-    positiveClips: [], negativeClips: [],
-    webhookNotifyUrl: s.webhook?.notify?.url || '',
-    webhookAlarmPrimaryUrl: s.webhook?.alarm_primary?.url || '',
-    webhookAlarmPrimaryRetries: s.webhook?.alarm_primary?.retries ?? 3,
-    webhookAlarmFallbackUrl: s.webhook?.alarm_fallback?.url || '',
-    webhookAlarmFallbackRetries: s.webhook?.alarm_fallback?.retries ?? 2,
-  });
+  const handleEditSignalDirect = async (id, form) => {
+    const webhook = buildWebhookBody({ action: form.action, ...form });
+    const patch = {
+      name: form.name,
+      text: form.phrase,
+      priority: form.priority,
+      default_action: form.action,
+      default_threshold: form.threshold,
+      escalation_llm: form.llmCheck,
+      llm_prompt_key: form.llmCheck && form.llmPromptKey ? form.llmPromptKey : null,
+      zone: form.zones.length > 0 ? form.zones : null,
+      ...(webhook ? { webhook } : { webhook: null }),
+    };
+    const updated = await setupApi.patchSignal(id, patch);
+    setSignals(prev => prev.map(s => s.id === id ? { ...s, ...updated } : s));
+    setView('signals-list');
+    setToast(`Signal ${id} saved`);
+  };
 
   if (loading) {
     return (
@@ -1776,12 +2374,15 @@ export function Setup({ username, onLogout }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div style={view === 'roi'
+      ? { height: '100vh', overflow: 'hidden', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }
+      : { minHeight: '100vh', background: 'var(--bg)' }
+    }>
       <TopNav username={username} onLogout={onLogout} onHome={() => navigate('/')} breadcrumb={breadcrumb} />
 
       {view === 'landing' && (
         <Landing camerasCount={cameras.length} signalsCount={signals.length}
-          onPick={k => { if (k === 'cameras') setView('list'); else setView('signals-list'); }} />
+          onPick={k => { if (k === 'cameras') setView('list'); else if (k === 'signals') setView('signals-list'); else if (k === 'site') navigate('/setup/site'); }} />
       )}
       {view === 'list' && (
         <CameraList cameras={cameras} onBack={() => setView('landing')}
@@ -1805,7 +2406,7 @@ export function Setup({ username, onLogout }) {
       {view === 'signals-list' && (
         <SignalList signals={signals} onBack={() => setView('landing')}
           onNew={() => { setWizardInit(null); setWizardStartStep(1); setView('signal-wizard'); }}
-          onEdit={s => { setWizardInit(buildWizardFromSignal(s)); setWizardStartStep(4); setView('signal-wizard'); }}
+          onEdit={s => { setEditingSignal(s); setView('signal-edit'); }}
           onDelete={handleDeleteSignal} />
       )}
       {view === 'signal-wizard' && (
@@ -1814,6 +2415,12 @@ export function Setup({ username, onLogout }) {
           existingSignalIds={signals.map(s => s.id)}
           onCancel={() => setView('signals-list')}
           onSave={handleSaveSignal} />
+      )}
+      {view === 'signal-edit' && editingSignal && (
+        <SignalEditForm signal={editingSignal}
+          cameras={cameras} zonesByCam={zonesByCam}
+          onCancel={() => setView('signals-list')}
+          onSave={handleEditSignalDirect} />
       )}
 
       {toast && <div className="toast">{toast}</div>}

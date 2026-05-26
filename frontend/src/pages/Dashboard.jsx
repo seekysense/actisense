@@ -8,6 +8,7 @@ import { AreaTile } from "../components/AreaTile.jsx";
 import { AreaDrawer } from "../components/AreaDrawer.jsx";
 import { EventDrawer } from "../components/EventDrawer.jsx";
 import { SignalPopover } from "../components/SignalPopover.jsx";
+import { LivePanel } from "../components/LivePanel.jsx";
 
 function toAt(timestamp) {
   const d = new Date(timestamp);
@@ -107,7 +108,8 @@ export function Dashboard({ username, onLogout }) {
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
   const [viewMode, setViewMode] = useState("day"); // "day" | "week"
 
-  const { alerts: liveAlerts, wsStatus } = useAlerts(100);
+  const [livePanelOpen, setLivePanelOpen] = useState(false);
+  const { alerts: liveAlerts, wsStatus, subscribe } = useAlerts(100);
 
   // Compute the displayed date range
   const dateRange = useMemo(() => {
@@ -311,7 +313,20 @@ export function Dashboard({ username, onLogout }) {
               <button className="tb-btn" onClick={() => navigate("/setup")} title="Setup">
                 <span className="mi" style={{ fontSize: 16 }}>tune</span>Setup
               </button>
-              {isViewingToday && <div className="tb-btn primary">Live</div>}
+              {isViewingToday && (
+                <button
+                  className={`tb-btn${livePanelOpen ? " primary" : ""}`}
+                  onClick={() => setLivePanelOpen((v) => !v)}
+                  style={{ display: "flex", alignItems: "center", gap: 5 }}
+                >
+                  <span style={{
+                    width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+                    background: livePanelOpen ? "#fff" : wsStatus === "connected" ? "var(--ok)" : "var(--ink-4)",
+                    boxShadow: wsStatus === "connected" && !livePanelOpen ? "0 0 5px var(--ok)" : "none",
+                  }} />
+                  Live
+                </button>
+              )}
             </div>
           </div>
 
@@ -397,6 +412,13 @@ export function Dashboard({ username, onLogout }) {
           data={popoverSignal}
           onClose={() => setPopoverSignal(null)}
           onChange={onSignalChange}
+        />
+      )}
+
+      {livePanelOpen && (
+        <LivePanel
+          subscribe={subscribe}
+          onClose={() => setLivePanelOpen(false)}
         />
       )}
     </div>

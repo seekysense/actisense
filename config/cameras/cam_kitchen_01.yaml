@@ -75,31 +75,6 @@ preprocessing:
       - - 258
         - 938
       rotation: 42
-    - name: cabinet
-      polygon:
-      - - 806
-        - 640
-      - - 740
-        - 614
-      - - 654
-        - 130
-      - - 1006
-        - 118
-      - - 1086
-        - 750
-      - - 804
-        - 642
-      - - 804
-        - 642
-      perspective_quad:
-      - - 654
-        - 118
-      - - 1086
-        - 118
-      - - 1160
-        - 746
-      - - 730
-        - 592
     - name: coffee_machine
       polygon:
       - - 1442
@@ -126,6 +101,33 @@ preprocessing:
         - 1074
       - - 1350
         - 1070
+    - name: cabinet
+      polygon:
+      - - 724
+        - 136
+      - - 652
+        - 154
+      - - 620
+        - 298
+      - - 628
+        - 598
+      - - 552
+        - 662
+      - - 660
+        - 774
+      - - 804
+        - 826
+      - - 1030
+        - 802
+      - - 1058
+        - 662
+      - - 986
+        - 108
+      - - 716
+        - 130
+      - - 716
+        - 130
+      rotation: -8.5
 native_analytics:
   people_counting: true
   cross_line: false

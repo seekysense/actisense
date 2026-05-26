@@ -357,6 +357,7 @@ async def run_batch(
                 z_scored = await evaluator.evaluate_windowed(
                     frame_set, embedding_client, camera_id, area_id,
                     signal_pairs, now_time=now_time, top_k=cfg.embed_top_k,
+                    emb_context_window=cfg.emb_context_window,
                 )
                 for s in z_scored:
                     result.scored_signals.append({

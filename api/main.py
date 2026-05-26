@@ -18,7 +18,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import alerts, clips, config as config_router, events, setup as setup_router, stats
+from .routers import alerts, clips, config as config_router, events, live as live_router, setup as setup_router, stats
 from .routers.auth import router as auth_router
 
 
@@ -71,6 +71,7 @@ app.include_router(stats.router, prefix="/api", tags=["stats"])
 app.include_router(config_router.router, prefix="/api", tags=["config"])
 app.include_router(clips.router, prefix="/api", tags=["clips"])
 app.include_router(setup_router.router, prefix="/api", tags=["setup"])
+app.include_router(live_router.router, prefix="/api", tags=["live"])
 
 
 @app.get("/health")

@@ -159,6 +159,7 @@ class AreaPatch(BaseModel):
     name: str | None = Field(None, description="Area display name")
     alert_cooldown_sec: int | None = Field(None, ge=0, description="Alert cooldown in seconds. Null reverts to site default")
     webhook_url: str | None = Field(None, description="Area-specific webhook URL. Null reverts to site default")
+    cameras: list[str] | None = Field(None, description="Replace the full cameras list for this area")
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +171,7 @@ class CameraCreate(BaseModel):
     name: str = Field(description="Human-readable camera name")
     area: str = Field(description="Area ID this camera belongs to")
     axis_ip: str = Field(default="", description="Axis camera IP address")
+    axis_channel: int | None = Field(None, description="Axis camera channel (multi-optics index, 1-based)")
     axis_user: str | None = Field(None, description="Camera username (null = AXIS_DEFAULT_USER)")
     axis_event_id: str | None = Field(None, description="VAPIX event ID for recording trigger")
     native_analytics: dict = Field(default_factory=dict, description="Native analytics config")
@@ -180,6 +182,7 @@ class CameraRead(BaseModel):
     name: str = Field(description="Human-readable camera name")
     area: str = Field(description="Area ID this camera belongs to")
     axis_ip: str = Field(description="Axis camera IP address for VAPIX polling")
+    axis_channel: int | None = Field(None, description="Axis camera channel if camera has multiple optics")
     axis_user: str | None = Field(None, description="Axis camera username. Null uses AXIS_DEFAULT_USER from .env")
     axis_event_id: str | None = Field(None, description="Axis VAPIX event ID for recording trigger")
     preprocessing: dict = Field(default_factory=dict, description="Frame preprocessing configuration including ROI zones")
@@ -197,10 +200,34 @@ class CameraRead(BaseModel):
 class CameraPatch(BaseModel):
     name: str | None = Field(None, description="Camera display name")
     axis_ip: str | None = Field(None, description="Camera IP address")
+    axis_channel: int | None = Field(None, description="Axis camera channel (multi-optics index)")
     axis_user: str | None = Field(None, description="Camera-specific username. Null uses global default")
     axis_event_id: str | None = Field(None, description="VAPIX event ID for recording trigger")
     preprocessing: dict | None = Field(None, description="Full replacement of preprocessing config including ROI zones")
     native_analytics: dict | None = Field(None, description="Native analytics configuration")
+
+
+# ---------------------------------------------------------------------------
+# Prompts
+# ---------------------------------------------------------------------------
+
+class PromptRead(BaseModel):
+    key: str = Field(description="Prompt catalog key")
+    file: str = Field(description="Source YAML filename")
+    preview: str = Field(description="First non-empty line of the prompt (≤120 chars)")
+    has_final_eval: bool = Field(description="Whether a final_eval aggregation prompt is configured")
+    final_eval_preview: str | None = Field(None, description="First non-empty line of the final_eval prompt")
+
+
+class PromptDetail(BaseModel):
+    key: str = Field(description="Prompt catalog key")
+    file: str = Field(description="Source YAML filename")
+    prompt: str = Field(description="Full prompt text used for per-window LLM calls")
+    final_eval: str | None = Field(None, description="Final aggregation prompt text. Null uses the default.")
+
+
+class PromptPatch(BaseModel):
+    final_eval: str | None = Field(None, description="Final aggregation prompt text. Set to null to remove and use the default.")
 
 
 # ---------------------------------------------------------------------------

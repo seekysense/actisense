@@ -55,4 +55,15 @@ export const api = {
   async getConfig() {
     return request("/api/config");
   },
+  async getSite() {
+    return request("/api/config/site");
+  },
+
+  async patchSite(body) {
+    return request("/api/config/site", { method: "PATCH", body: JSON.stringify(body) });
+  },
+
+  async getLiveStatus() {
+    return request("/api/live/status");
+  },
 };

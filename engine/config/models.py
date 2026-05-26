@@ -84,6 +84,7 @@ class Camera(BaseModel):
     axis_user: str | None = None
     axis_pass: str | None = None
     axis_event_id: str | None = None
+    axis_channel: int | None = None
     preprocessing: CameraPreprocessing = Field(default_factory=CameraPreprocessing)
     native_analytics: dict = Field(default_factory=dict)
 
@@ -140,7 +141,9 @@ class SiteConfig(BaseModel):
     llm_use_reasoning: bool     # usa /v1/responses con enable_thinking=true (LLM_USEREASONING)
     embedding_model: str        # nome modello embedding (es. Galene/Embedding-Vision)
     emb_context_window: int     # context window del modello embedding (token)
+    embed_fallback_size: int    # risoluzione fallback (px) quando i frame superano emb_context_window
     embedding_api_key: str      # bearer token per servizio embedding autenticato (EMBEDDING_API_KEY)
+    clip_on_camera: bool        # se True, il clip non viene salvato in locale; rimane sulla telecamera
 
     def cameras_for_area(self, area_id: str) -> list[Camera]:
         """Restituisce Camera objects per le cam associate all'area."""

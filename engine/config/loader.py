@@ -226,9 +226,11 @@ def load_config(site_yaml_path: Path) -> SiteConfig:
         llm_use_reasoning=os.getenv("LLM_USEREASONING", "false").lower() == "true",
         embedding_model=os.getenv("EMBEDDING_MODEL", ""),
         emb_context_window=int(os.getenv("EMB_CONTEXT_WINDOW", "8000")),
+        embed_fallback_size=int(os.getenv("EMBED_FALLBACK_SIZE", "128")),
         embedding_api_key=(
             os.getenv("EMBEDDING_API_KEY")
             or os.getenv("LLM_API_KEY")
             or ""
         ),
+        clip_on_camera=os.getenv("CLIP_ON_CAMERA", "false").lower() == "true",
     )

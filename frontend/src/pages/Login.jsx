@@ -20,10 +20,6 @@ export function Login({ onLogin }) {
       <div className="login-card">
         <div className="login-brand">
           <img src="/logo.svg" className="site-brand-logo" alt="" />
-          <div>
-            <div className="login-brand-name">H4H Visual AI</div>
-            <div className="login-brand-tag">Operations Console</div>
-          </div>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="login-field">

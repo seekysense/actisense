@@ -122,7 +122,11 @@ export function AreaDrawer({ area, events, signals, range, onClose, onOpenEvent 
                     <rect x="2" y="4" width="20" height="16" rx="2"/>
                     <path d="M10 9l5 3-5 3V9z" fill="currentColor" stroke="none"/>
                   </svg>
-                  <span>Clip not available</span>
+                  <span>
+                    {selected?.clip_path?.startsWith("axis:")
+                      ? "Video no longer available on camera"
+                      : "Clip not available"}
+                  </span>
                 </div>
               ) : (
                 <div className="area-video-wrap">

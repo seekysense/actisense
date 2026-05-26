@@ -8,6 +8,8 @@ Credentials (axis_pass) are never returned by read endpoints.
 """
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 
 from ..deps import get_config_api_key, get_current_user
@@ -21,6 +23,9 @@ from ..schemas.config import (
     CameraRead,
     ErrorResponse,
     MessageResponse,
+    PromptDetail,
+    PromptPatch,
+    PromptRead,
     SignalCreate,
     SignalPatch,
     SignalRead,
@@ -31,6 +36,7 @@ from ..services.config_writer import (
     cameras_dir,
     custom_library_path,
     find_signal_library,
+    prompts_dir,
     read_yaml,
     site_yaml_path,
     validate_camera_id,
@@ -135,6 +141,124 @@ async def patch_site(body: SitePatch, _: str = Depends(get_config_api_key)):
         data["site"][field] = val
     write_yaml(site_yaml_path(), data)
     return data["site"]
+
+
+# ---------------------------------------------------------------------------
+# Prompts
+# ---------------------------------------------------------------------------
+
+def _first_line(text: str, max_len: int = 120) -> str:
+    line = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
+    return line[:max_len] + ("…" if len(line) > max_len else "")
+
+
+def _parse_prompt_entry(value) -> tuple[str, str | None]:
+    """Return (prompt_text, final_eval_text|None) for a YAML entry."""
+    if isinstance(value, str):
+        return value, None
+    if isinstance(value, dict):
+        return value.get("prompt", ""), value.get("final_eval") or None
+    return "", None
+
+
+def _find_prompt_in_files(key: str) -> tuple[dict, Any] | tuple[None, None]:
+    """Return (yaml_data_dict, file_path) for the file that contains key, or (None, None)."""
+    import yaml as _yaml
+    pdir = prompts_dir()
+    if pdir.exists():
+        for f in sorted(pdir.glob("*.yaml")):
+            try:
+                data = _yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+                if key in data:
+                    return data, f
+            except Exception:
+                continue
+    return None, None
+
+
+@router.get(
+    "/prompts",
+    response_model=list[PromptRead],
+    summary="List available LLM prompt keys",
+    description="Returns all prompt keys defined in config/signals/prompts/*.yaml, "
+                "ordered alphabetically by file then by key. Each entry includes a "
+                "preview and whether a final_eval aggregation prompt is configured.",
+    responses=_401,
+    tags=["config-signals"],
+)
+async def list_prompts(_: str = Depends(get_config_api_key)):
+    import yaml as _yaml
+    result = []
+    pdir = prompts_dir()
+    if pdir.exists():
+        for f in sorted(pdir.glob("*.yaml")):
+            try:
+                data = _yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+            except Exception:
+                continue
+            for key, value in data.items():
+                prompt_text, final_eval_text = _parse_prompt_entry(value)
+                if not prompt_text and not isinstance(value, (str, dict)):
+                    continue
+                result.append({
+                    "key": key,
+                    "file": f.name,
+                    "preview": _first_line(prompt_text),
+                    "has_final_eval": final_eval_text is not None,
+                    "final_eval_preview": _first_line(final_eval_text) if final_eval_text else None,
+                })
+    return result
+
+
+@router.get(
+    "/prompts/{key}",
+    response_model=PromptDetail,
+    summary="Get full prompt detail",
+    description="Returns the full prompt text and final_eval text for a given key.",
+    responses={**_401, **_404},
+    tags=["config-signals"],
+)
+async def get_prompt_detail(
+    key: str = Path(description="Prompt catalog key"),
+    _: str = Depends(get_config_api_key),
+):
+    data, f = _find_prompt_in_files(key)
+    if data is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Prompt key '{key}' not found")
+    prompt_text, final_eval_text = _parse_prompt_entry(data[key])
+    return {"key": key, "file": f.name, "prompt": prompt_text, "final_eval": final_eval_text}
+
+
+@router.patch(
+    "/prompts/{key}",
+    response_model=PromptDetail,
+    summary="Update final_eval for a prompt",
+    description="Set or clear the final_eval aggregation prompt for a given key. "
+                "The entry is converted to dict format {prompt, final_eval} if needed. "
+                "Set final_eval to null to revert to the default aggregation prompt.",
+    responses={**_401, **_404},
+    tags=["config-signals"],
+)
+async def patch_prompt(
+    body: PromptPatch,
+    key: str = Path(description="Prompt catalog key"),
+    _: str = Depends(get_config_api_key),
+):
+    data, f = _find_prompt_in_files(key)
+    if data is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Prompt key '{key}' not found")
+
+    prompt_text, _ = _parse_prompt_entry(data[key])
+    if body.final_eval:
+        data[key] = {"prompt": prompt_text, "final_eval": body.final_eval}
+        final_eval_out = body.final_eval
+    else:
+        # Revert to plain string, removing final_eval
+        data[key] = prompt_text
+        final_eval_out = None
+
+    write_yaml(f, data)
+    return {"key": key, "file": f.name, "prompt": prompt_text, "final_eval": final_eval_out}
 
 
 # ---------------------------------------------------------------------------
@@ -569,7 +693,7 @@ async def camera_snapshot(
                             detail=f"Camera '{camera_id}' has no axis_ip configured")
     axis = AxisClient(camera, cfg.axis_default_user, cfg.axis_default_pass)
     try:
-        jpeg = await axis.get_snapshot()
+        jpeg = await axis.get_snapshot(channel=getattr(camera, "axis_channel", None))
         return FastAPIResponse(content=jpeg, media_type="image/jpeg")
     except CameraOfflineError:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY,

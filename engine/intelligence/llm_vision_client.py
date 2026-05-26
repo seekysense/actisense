@@ -25,7 +25,7 @@ import aiohttp
 import cv2
 import numpy as np
 
-from engine.config.prompts import get_prompt
+from engine.config.prompts import get_final_eval_prompt, get_prompt
 from engine.telemetry import trace_llm
 
 try:
@@ -412,4 +412,54 @@ class LLMVisionClient:
 
             latency = (time.monotonic() - t0) * 1000
             span_data["error"] = "no_frames"
+            return _unavailable_verdict(self._model, latency)
+
+    async def analyze_final(
+        self,
+        window_verdicts: list[LLMVerdict],
+        prompt_key: str | None,
+    ) -> LLMVerdict:
+        """Text-only final evaluation that aggregates per-window verdicts.
+
+        Uses the final_eval prompt configured for the key, or the default.
+        Never raises — falls back to the best window verdict on any failure.
+        """
+        best_fallback = max(
+            window_verdicts,
+            key=lambda v: (v.confirmed, v.confidence),
+            default=None,
+        )
+
+        verdicts_block = "\n".join(
+            f"- Window {i + 1}: confirmed={v.confirmed}, "
+            f"confidence={v.confidence:.2f} — {v.description}"
+            for i, v in enumerate(window_verdicts)
+        )
+
+        template = get_final_eval_prompt(prompt_key)
+        if "{verdicts_block}" in template:
+            final_prompt = template.replace("{verdicts_block}", verdicts_block)
+        else:
+            final_prompt = template + "\n\nWindow verdicts:\n" + verdicts_block
+
+        content = [{"type": "text", "text": final_prompt}]
+        t0 = time.monotonic()
+        try:
+            raw = await self._call_openai(content)
+            latency = (time.monotonic() - t0) * 1000
+            verdict = self._parse_verdict(raw, self._model, latency)
+            log.info(
+                "llm_final_eval_done",
+                model=self._model,
+                windows=len(window_verdicts),
+                confirmed=verdict.confirmed,
+                confidence=round(verdict.confidence, 3),
+                latency_ms=round(latency),
+            )
+            return verdict
+        except Exception as exc:
+            latency = (time.monotonic() - t0) * 1000
+            log.warning("llm_final_eval_failed", error=str(exc))
+            if best_fallback is not None:
+                return best_fallback
             return _unavailable_verdict(self._model, latency)

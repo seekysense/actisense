@@ -35,6 +35,10 @@ class EmbeddingError(RuntimeError):
     """Raised su errore HTTP 5xx o eccezione di rete non recuperata."""
 
 
+class EmbeddingContextLimitError(EmbeddingError):
+    """Raised quando il payload supera il context window del modello embedding."""
+
+
 class EmbeddingClient:
     def __init__(
         self,
@@ -171,13 +175,25 @@ class EmbeddingClient:
                 async with self._get_session().post(url, json=payload, timeout=t) as resp:
                     if resp.status >= 500:
                         if attempt == 0:
-                            log.warning("embedding_5xx_retry", url=url, status=resp.status)
+                            body_snippet = (await resp.text())[:300]
+                            log.warning("embedding_5xx_retry", url=url, status=resp.status,
+                                        body=body_snippet)
                             await asyncio.sleep(2)
                             continue
                         raise EmbeddingServiceUnavailable(
                             f"Embedding service error HTTP {resp.status} from {url}"
                         )
-                    resp.raise_for_status()
+                    if resp.status >= 400:
+                        error_body = (await resp.text())[:500]
+                        log.error("embedding_4xx_error", url=url, status=resp.status,
+                                  body=error_body)
+                        if resp.status == 400 and "context length" in error_body.lower():
+                            raise EmbeddingContextLimitError(
+                                f"HTTP 400 context limit exceeded: {error_body[:200]}"
+                            )
+                        raise EmbeddingError(
+                            f"HTTP error {resp.status}: {error_body}"
+                        )
                     return await resp.json()
             except (EmbeddingError, EmbeddingServiceUnavailable):
                 raise

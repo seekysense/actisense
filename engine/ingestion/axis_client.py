@@ -120,10 +120,19 @@ class AxisClient:
                  size_kb=round(size_kb, 1))
         return dest_path
 
-    async def get_snapshot(self, resolution: str = "1920x1080") -> bytes:
-        """GET /axis-cgi/jpg/image.cgi — returns raw JPEG bytes."""
+    async def get_snapshot(self, resolution: str = "1920x1080", channel: int | None = None) -> bytes:
+        """GET /axis-cgi/jpg/image.cgi — returns raw JPEG bytes.
+
+        If `channel` is provided, it is added as a query parameter to select
+        the multi-optics channel on cameras that expose this option.
+        """
         url = f"{self._base_url}/axis-cgi/jpg/image.cgi"
-        resp = await self._get(url, params={"resolution": resolution})
+        params = {"resolution": resolution}
+        if channel is not None:
+            # Common VAPIX query key for selecting multi-optics channel is 'camera' or 'view'
+            # Use 'camera' as a sensible default; the firmware may accept different names.
+            params["camera"] = str(channel)
+        resp = await self._get(url, params=params)
         return resp.content
 
     async def get_people_count(self) -> int | None:

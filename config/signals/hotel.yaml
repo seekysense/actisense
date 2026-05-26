@@ -294,20 +294,20 @@ signals:
   # Cabinet
   - id: cabinet_opened
     name: "Cabinet Interaction"
-    text: "a person standing with their back to the camera in front of a tall glass-panel display cabinet with dark wood frame, the glass doors open to reveal wooden shelves stocked with food products, snack boxes, bottles and drinks, person's body close to the open cabinet interior with arm raised or extended toward the shelves, hotel honesty bar or pantry cabinet"
+    text: "a person standing in front of an open tall glass-panel cabinet with dark metal frame, cabinet glass doors open exposing illuminated wooden shelves stocked with food products, snack boxes, bottles and drinks, person oriented toward the open cabinet with arm raised or hand near the door frame or interior shelves, hotel honesty bar or pantry minibar"
     priority: 3
-    default_threshold: 0.60
+    default_threshold: 0.40
     default_action: statistic
     escalation_llm: true
     llm_prompt_key: cabinet_interaction_context
     temporal_context_sec: 10
     zone: cabinet
 
-  - id: cabinet_taken
+  - id: cabinet_item_taken
     name: "Cabinet Item Taken"
-    text: "a person with their back to the camera reaching their arm inside an open tall glass display cabinet, hand extended into the interior toward shelves stocked with bottles, snack boxes and food packages, arm crossing past the open glass door frame to grip or retrieve an item from the hotel honesty bar shelves, upright posture in front of the open cabinet"
+    text: "a person standing at an open tall glass display cabinet with dark metal frame, arm extended inside or reaching across the open cabinet door toward shelves stocked with bottles, snack boxes and food packages, hand gripping or retrieving an item from the hotel honesty bar minibar, upper display shelves or lower refrigerator compartment open, person upright or slightly bent at waist"
     priority: 2
-    default_threshold: 0.38
+    default_threshold: 0.35
     default_action: notify
     escalation_llm: true
     llm_prompt_key: cabinet_item_taken_context

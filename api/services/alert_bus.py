@@ -39,5 +39,17 @@ class AlertBus:
     def recent(self, limit: int = 20) -> list[dict]:
         return list(self._history)[:limit]
 
+    async def publish_raw(self, msg: dict) -> None:
+        """Broadcast a pre-typed WS message (not stored in history)."""
+        dead: list[asyncio.Queue] = []
+        async with self._lock:
+            for q in self._queues:
+                try:
+                    q.put_nowait(msg)
+                except asyncio.QueueFull:
+                    dead.append(q)
+            for q in dead:
+                self._queues.remove(q)
+
 
 alert_bus = AlertBus()

@@ -36,9 +36,10 @@ class ClipManager:
         axis_client: AxisClient,
         event_id: str,
         lookback_sec: int = 60,
-    ) -> list[Path]:
+    ) -> list[tuple[Path, str]]:
         """
         Lista registrazioni negli ultimi lookback_sec, scarica quelle nuove.
+        Ritorna lista di (path, disk_id) — disk_id serve per re-export dalla telecamera.
         Segna automaticamente come viste le registrazioni scaricate.
         """
         from datetime import datetime, timedelta, timezone
@@ -51,13 +52,13 @@ class ClipManager:
         if not new:
             return []
 
-        downloaded: list[Path] = []
+        downloaded: list[tuple[Path, str]] = []
         for rec in new:
             # Marca come vista prima del download per evitare doppi tentativi paralleli
             self._seen.add(rec.recording_id)
             try:
                 path = await axis_client.download_recording(rec, self._temp_dir)
-                downloaded.append(path)
+                downloaded.append((path, rec.disk_id))
             except Exception as exc:
                 log.warning("clip_download_failed", recording_id=rec.recording_id,
                             error=str(exc))

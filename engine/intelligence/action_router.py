@@ -46,6 +46,7 @@ class ActionRouter:
         clip_store: Any,
         llm_client: Any,
         llm_max_calls: int = 5,
+        clip_on_camera: bool = False,
     ) -> None:
         self._dedup          = dedup
         self._lancedb_store  = lancedb_store
@@ -53,32 +54,50 @@ class ActionRouter:
         self._clip_store     = clip_store
         self._llm_client     = llm_client
         self._llm_max_calls  = llm_max_calls
+        self._clip_on_camera = clip_on_camera
 
     async def _analyze_windowed_llm(
         self,
         frame_set: Any,
         prompt_key: str | None,
         temporal_context: TemporalContext | None = None,
+        window_scores: list[float] | None = None,
     ) -> Any:
         """
-        Chiama il LLM su al più llm_max_calls finestre distribuite sul clip.
-        Se temporal_context è fornito, ogni chiamata include frame BEFORE/AFTER
-        per consentire ragionamento sulla dinamica della scena.
+        Chiama il LLM su al più llm_max_calls finestre del clip.
+        Se window_scores è fornito (per_window_scores dall'embedder), seleziona le finestre
+        con score embedding più alto invece di campionare uniformemente — così l'LLM analizza
+        solo le parti del clip dove l'embedder ha già trovato alta similarità semantica.
+        Se temporal_context è fornito, ogni chiamata include frame BEFORE/AFTER.
         Restituisce il verdetto con confidence più alta; confirmed=True ha priorità.
         """
-        windows = frame_set.llm_windows(self._llm_max_calls)
+        if window_scores:
+            windows = frame_set.llm_windows_top_by_score(window_scores, self._llm_max_calls)
+            log.debug("llm_windows_score_guided", n_windows=len(windows),
+                      top_scores=[round(s, 3) for s in sorted(window_scores, reverse=True)[:self._llm_max_calls]])
+        else:
+            windows = frame_set.llm_windows(self._llm_max_calls)
+        verdicts = []
         best = None
         for i, win_frames in enumerate(windows):
             verdict = await self._llm_client.analyze(win_frames, prompt_key, temporal_context)
             log.debug("llm_window_verdict", window=i + 1, total=len(windows),
                       confirmed=verdict.confirmed, confidence=round(verdict.confidence, 3),
                       temporal=temporal_context is not None)
+            verdicts.append(verdict)
             if best is None:
                 best = verdict
             elif verdict.confirmed and not best.confirmed:
                 best = verdict
             elif verdict.confirmed == best.confirmed and verdict.confidence > best.confidence:
                 best = verdict
+
+        if len(verdicts) > 1 and hasattr(self._llm_client, "analyze_final"):
+            try:
+                return await self._llm_client.analyze_final(verdicts, prompt_key)
+            except Exception as exc:
+                log.warning("llm_final_eval_failed", error=str(exc))
+
         return best
 
     async def route(
@@ -148,12 +167,21 @@ class ActionRouter:
             # Save clip for all event types (statistic included)
             saved_clip_path = ""
             if clip_job and self._clip_store:
-                try:
-                    saved_clip_path = str(
-                        self._clip_store.save(clip_job.clip_path, event_id, area_id)
-                    )
-                except Exception as exc:
-                    log.warning("clip_save_failed", error=str(exc))
+                if self._clip_on_camera:
+                    # Modalità CLIP_ON_CAMERA: il filmato rimane sulla telecamera.
+                    # Si memorizza un URI asse per il retrieval live; il temp file viene eliminato.
+                    disk_id = getattr(clip_job, "disk_id", "")
+                    saved_clip_path = f"axis:{clip_job.camera_id}:{clip_job.recording_id}:{disk_id}"
+                    self._clip_store.cleanup_temp(clip_job.clip_path)
+                    log.info("clip_on_camera_mode", camera_id=clip_job.camera_id,
+                             recording_id=clip_job.recording_id)
+                else:
+                    try:
+                        saved_clip_path = str(
+                            self._clip_store.save(clip_job.clip_path, event_id, area_id)
+                        )
+                    except Exception as exc:
+                        log.warning("clip_save_failed", error=str(exc))
 
             if scored.action == "statistic":
                 if self._lancedb_store:
@@ -185,7 +213,8 @@ class ActionRouter:
                             else None
                         )
                         llm_verdict = await self._analyze_windowed_llm(
-                            frame_set, effective_prompt_key, signal_ctx
+                            frame_set, effective_prompt_key, signal_ctx,
+                            window_scores=scored.per_window_scores or None,
                         )
                         llm_esc = True
                     except Exception as exc:

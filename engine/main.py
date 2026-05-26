@@ -51,6 +51,7 @@ def _make_processor(state: _State, embedding_client, router, clip_managers: dict
     """Returns a ClipJob processor closure with access to shared state."""
     from engine.embedding.client import EmbeddingServiceUnavailable
     from engine.preprocessing.frame_extractor import extract_frames
+    from engine.telemetry.live_publisher import emit
 
     async def process_clip(job) -> None:
         cfg    = state.cfg
@@ -63,6 +64,11 @@ def _make_processor(state: _State, embedding_client, router, clip_managers: dict
         if not area_cfg:
             log.warning("area_not_found", area_id=job.area_id)
             return
+
+        emit("clip_processing",
+             camera_id=job.camera_id,
+             area_id=job.area_id,
+             recording_id=job.recording_id)
 
         try:
             area_signals = cfg.active_signals_for_area(job.area_id)
@@ -90,11 +96,23 @@ def _make_processor(state: _State, embedding_client, router, clip_managers: dict
                 scored = await state.evaluator.evaluate_windowed(
                     frame_set, embedding_client, job.camera_id,
                     job.area_id, signal_pairs, top_k=cfg.embed_top_k,
+                    emb_context_window=cfg.emb_context_window,
                 )
                 all_scored.extend(scored)
 
             if default_frame_set is None:
                 return
+
+            # Emit scored event with best signal result
+            if all_scored:
+                best = max(all_scored, key=lambda s: s.score)
+                emit("clip_scored",
+                     camera_id=job.camera_id,
+                     area_id=job.area_id,
+                     recording_id=job.recording_id,
+                     signal_id=best.signal_id,
+                     score=round(best.score, 3),
+                     action=best.action if best.exceeds_threshold else None)
 
             cooldown = area_cfg.alert_cooldown_sec or cfg.site.alert_cooldown_sec
             default_url = os.getenv("WEBHOOK_DEFAULT_URL",
@@ -123,7 +141,10 @@ def _make_processor(state: _State, embedding_client, router, clip_managers: dict
 # ---------------------------------------------------------------------------
 
 async def poll_camera(axis_client, clip_manager, queue, state: _State,
-                      stop_event: asyncio.Event) -> None:
+                      stop_event: asyncio.Event,
+                      camera_live_stats: dict) -> None:
+    from engine.telemetry.live_publisher import emit
+
     last_cleanup = time.monotonic()
 
     while not stop_event.is_set():
@@ -132,7 +153,7 @@ async def poll_camera(axis_client, clip_manager, queue, state: _State,
             clips = await clip_manager.fetch_new_clips(
                 axis_client, event_id=None, lookback_sec=cfg.axis_poll_interval_sec * 3
             )
-            for clip_path in clips:
+            for clip_path, disk_id in clips:
                 cam_id   = axis_client._camera.id
                 area_id  = cfg.cameras[cam_id].area if cam_id in cfg.cameras else "unknown"
                 area_signals = cfg.active_signals_for_area(area_id) if area_id in cfg.areas else []
@@ -142,14 +163,33 @@ async def poll_camera(axis_client, clip_manager, queue, state: _State,
                     camera_id=cam_id,
                     area_id=area_id,
                     recording_id=clip_path.stem,
+                    disk_id=disk_id,
                     enqueued_at=time.monotonic(),
                     priority=priority,
                 )
-                await queue.enqueue(job)
+                enqueued = await queue.enqueue(job)
+                now = time.time()
+                stats = camera_live_stats.setdefault(cam_id, {"clips_last_hour": 0, "reachable": True})
+                stats["last_clip_at"] = now
+                stats["reachable"] = True
+                if enqueued:
+                    stats["clips_last_hour"] = stats.get("clips_last_hour", 0) + 1
+                    emit("clip_ingested",
+                         camera_id=cam_id,
+                         area_id=area_id,
+                         recording_id=clip_path.stem)
+                else:
+                    emit("clip_dropped",
+                         camera_id=cam_id,
+                         area_id=area_id,
+                         recording_id=clip_path.stem,
+                         detail="backpressure")
 
         except Exception as exc:
+            cam_id = axis_client._camera.id
+            camera_live_stats.setdefault(cam_id, {})["reachable"] = False
             log.warning("poll_camera_error",
-                        camera_id=axis_client._camera.id, error=str(exc))
+                        camera_id=cam_id, error=str(exc))
 
         # Cleanup every hour
         if time.monotonic() - last_cleanup > 3600:
@@ -251,7 +291,8 @@ async def main(config_path: Path, with_api: bool = False) -> None:
 
     # 6. Router + evaluator
     router    = ActionRouter(dedup, store, notifier, clip_store, llm_client,
-                             llm_max_calls=cfg.llm_max_calls)
+                             llm_max_calls=cfg.llm_max_calls,
+                             clip_on_camera=cfg.clip_on_camera)
     evaluator = SignalEvaluator(signal_cache)
 
     state = _State(cfg, signal_cache, evaluator)
@@ -311,6 +352,28 @@ async def main(config_path: Path, with_api: bool = False) -> None:
     health_checker = HealthChecker(embedding_client, llm_client, cfg)
     health_task    = asyncio.create_task(health_checker.watch_loop(interval_sec=60))
 
+    from engine.telemetry.live_publisher import emit_heartbeat
+
+    camera_live_stats: dict = {}   # cam_id → {last_clip_at, clips_last_hour, reachable}
+
+    async def _heartbeat_loop() -> None:
+        while not stop_event.is_set():
+            try:
+                await asyncio.wait_for(
+                    asyncio.shield(stop_event.wait()), timeout=5.0
+                )
+            except asyncio.TimeoutError:
+                pass
+            if stop_event.is_set():
+                break
+            cams = [
+                {"camera_id": cam_id, **stats}
+                for cam_id, stats in camera_live_stats.items()
+            ]
+            emit_heartbeat(queue.stats(), cams)
+
+    heartbeat_task = asyncio.create_task(_heartbeat_loop())
+
     axis_clients: list = []
     poll_tasks: list   = []
     for area in cfg.areas.values():
@@ -332,6 +395,7 @@ async def main(config_path: Path, with_api: bool = False) -> None:
                     queue,
                     state,
                     stop_event,
+                    camera_live_stats,
                 )
             )
             poll_tasks.append(task)
@@ -348,6 +412,7 @@ async def main(config_path: Path, with_api: bool = False) -> None:
     # 12. Graceful shutdown
     log.info("shutting_down")
     health_task.cancel()
+    heartbeat_task.cancel()
     for t in poll_tasks:
         t.cancel()
 
@@ -355,7 +420,7 @@ async def main(config_path: Path, with_api: bool = False) -> None:
     queue_task.cancel()
 
     try:
-        await asyncio.gather(health_task, *poll_tasks, return_exceptions=True)
+        await asyncio.gather(health_task, heartbeat_task, *poll_tasks, return_exceptions=True)
     except Exception:
         pass
 

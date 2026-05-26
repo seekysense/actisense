@@ -1,0 +1,10 @@
+# Custom LLM Vision escalation prompts.
+# Keys defined here override keys from hotel.yaml.
+# Add new prompt keys here for signals defined in config/signals/custom.yaml.
+#
+# Example:
+# my_signal_context: |
+#   These frames are from a security camera.
+#   Determine whether ...
+#   Answer in JSON: {"confirmed": true/false, "description": "...", "confidence": 0.0-1.0}
+#   Only respond with valid JSON.

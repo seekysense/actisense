@@ -1,10 +1,13 @@
 """
 Estrae frame da un clip video a una frequenza configurabile (embed_fps).
-Produce due set: uno per l'embedder (FRAME_SIZE_EMBEDDER) e uno per LLM (FRAME_SIZE_LLM).
+Produce tre set: embedder primario (FRAME_SIZE_EMBEDDER), embedder fallback
+(EMBED_FALLBACK_SIZE, usato quando i frame primari superano EMB_CONTEXT_WINDOW),
+e LLM (FRAME_SIZE_LLM).
 
 FrameSet espone:
-  embed_windows()        → finestre consecutive da EMBED_FPS × EMBED_WINDOW_SEC frame
-  llm_windows(max_calls) → al più max_calls finestre distribuite uniformemente
+  embed_windows()          → finestre consecutive di frame primari (FRAME_SIZE_EMBEDDER)
+  embed_windows_fallback() → stesse finestre con frame a risoluzione ridotta (EMBED_FALLBACK_SIZE)
+  llm_windows(max_calls)   → al più max_calls finestre distribuite uniformemente
 """
 from __future__ import annotations
 
@@ -29,14 +32,15 @@ from engine.preprocessing.roi import apply_roi, crop_zone
 
 @dataclass
 class FrameSet:
-    frames_embedder: list[str]      # base64 JPEG, frame_size_embedder px
-    frames_llm:      list[str]      # base64 JPEG, frame_size_llm px
-    frame_count:     int
+    frames_embedder:          list[str]   # base64 JPEG, frame_size_embedder px (qualità primaria)
+    frames_embedder_fallback: list[str]   # base64 JPEG, embed_fallback_size px (usato se >EMB_CONTEXT_WINDOW)
+    frames_llm:               list[str]   # base64 JPEG, frame_size_llm px
+    frame_count:      int
     clip_duration_sec: float
-    zone_name:       str | None
-    embed_fps:       int
+    zone_name:        str | None
+    embed_fps:        int
     embed_window_sec: int
-    embed_max_windows: int = 0      # 0 = nessun limite
+    embed_max_windows: int = 0            # 0 = nessun limite
 
     def embed_windows(self) -> list[list[str]]:
         """
@@ -46,6 +50,30 @@ class FrameSet:
         """
         win = max(1, self.embed_fps * self.embed_window_sec)
         f = self.frames_embedder
+        if not f:
+            return []
+        all_wins = [f[i:i + win] for i in range(0, len(f), win) if f[i:i + win]]
+        cap = self.embed_max_windows
+        if cap <= 0 or cap >= len(all_wins):
+            return all_wins
+        n = cap
+        step = (len(all_wins) - 1) / (n - 1) if n > 1 else 0
+        seen: set[int] = set()
+        result = []
+        for i in range(n):
+            idx = round(i * step)
+            if idx not in seen:
+                seen.add(idx)
+                result.append(all_wins[idx])
+        return result
+
+    def embed_windows_fallback(self) -> list[list[str]]:
+        """
+        Stessa selezione di embed_windows() ma sui frame a risoluzione ridotta
+        (frames_embedder_fallback). Usato quando i frame primari superano EMB_CONTEXT_WINDOW.
+        """
+        win = max(1, self.embed_fps * self.embed_window_sec)
+        f = self.frames_embedder_fallback
         if not f:
             return []
         all_wins = [f[i:i + win] for i in range(0, len(f), win) if f[i:i + win]]
@@ -95,6 +123,47 @@ class FrameSet:
                 seen.add(idx)
                 result.append(all_wins[idx])
         return result
+
+    def llm_windows_top_by_score(
+        self,
+        window_scores: list[float],
+        max_calls: int,
+    ) -> list[list[str]]:
+        """
+        Seleziona le top max_calls finestre LLM ordinate per score embedding decrescente.
+
+        Le finestre sono le stesse di llm_windows() (stessa dimensione embed_fps×embed_window_sec)
+        e si allineano 1:1 con le finestre di embed_windows() perché entrambe derivano dallo
+        stesso kept_crops. Le finestre selezionate vengono restituite in ordine cronologico
+        originale, in modo che l'LLM le veda in sequenza temporale corretta.
+
+        Fallback a llm_windows(max_calls) se window_scores è vuoto o non allineato.
+        """
+        if not window_scores:
+            return self.llm_windows(max_calls)
+
+        win = max(1, self.embed_fps * self.embed_window_sec)
+        f = self.frames_llm
+        if not f:
+            return []
+        all_wins = [f[i:i + win] for i in range(0, len(f), win) if f[i:i + win]]
+        if not all_wins:
+            return self.llm_windows(max_calls)
+
+        n_align = min(len(all_wins), len(window_scores))
+        if n_align == 0:
+            return self.llm_windows(max_calls)
+
+        # Ordina gli indici per score decrescente, prendi i top max_calls
+        top_indices = sorted(
+            range(n_align),
+            key=lambda i: window_scores[i],
+            reverse=True,
+        )[:max_calls]
+
+        # Rimetti in ordine cronologico per l'LLM
+        top_indices.sort()
+        return [all_wins[i] for i in top_indices]
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +268,8 @@ def extract_frames(
                     log.warning("zone_not_found_skip", zone_name=zone_name,
                                 camera_id=camera_config.id)
                     # Zona richiesta non presente su questa camera → skip
-                    return FrameSet(frames_embedder=[], frames_llm=[], frame_count=0,
+                    return FrameSet(frames_embedder=[], frames_embedder_fallback=[],
+                                    frames_llm=[], frame_count=0,
                                     clip_duration_sec=total_frames / source_fps,
                                     zone_name=zone_name, embed_fps=cfg.embed_fps,
                                     embed_window_sec=cfg.embed_window_sec,
@@ -232,8 +302,9 @@ def extract_frames(
         kept_crops = _filter_similar(raw_crops, cfg.embed_min_frame_diff, min_keep)
 
         # --- Encode in base64 JPEG ---
-        frames_embedder: list[str] = []
-        frames_llm:      list[str] = []
+        frames_embedder:          list[str] = []
+        frames_embedder_fallback: list[str] = []
+        frames_llm:               list[str] = []
 
         for i, crop in enumerate(kept_crops):
             if debug_base is not None:
@@ -243,6 +314,11 @@ def extract_frames(
                             interpolation=cv2.INTER_AREA)
             _, em_buf = cv2.imencode(".jpg", em, [cv2.IMWRITE_JPEG_QUALITY, 85])
             frames_embedder.append(base64.b64encode(em_buf.tobytes()).decode())
+
+            fb = cv2.resize(crop, (cfg.embed_fallback_size, cfg.embed_fallback_size),
+                            interpolation=cv2.INTER_AREA)
+            _, fb_buf = cv2.imencode(".jpg", fb, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            frames_embedder_fallback.append(base64.b64encode(fb_buf.tobytes()).decode())
 
             lm = cv2.resize(crop, (cfg.frame_size_llm, cfg.frame_size_llm),
                             interpolation=cv2.INTER_AREA)
@@ -256,6 +332,7 @@ def extract_frames(
 
         return FrameSet(
             frames_embedder=frames_embedder,
+            frames_embedder_fallback=frames_embedder_fallback,
             frames_llm=frames_llm,
             frame_count=len(frames_embedder),
             clip_duration_sec=clip_duration_sec,

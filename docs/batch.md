@@ -40,8 +40,8 @@ python scripts/batch_process.py \
     [--dry-run]
 
 python scripts/batch_process.py  --camera cam_entrance_01 --from 2026-05-04:15.00  --to 2026-05-04:16.00
-python scripts/batch_process.py  --camera cam_lobby_01 --from 2026-05-01  --to 2026-05-03
-python scripts/batch_process.py  --camera cam_kitchen_01 --from 2026-05-01  --to 2026-05-03
+python scripts/batch_process.py  --camera cam_lobby_01 --from 2026-05-16  --to 2026-05-17
+python scripts/batch_process.py  --camera cam_kitchen_01 --from 2026-05-16  --to 2026-05-17
 
 
 

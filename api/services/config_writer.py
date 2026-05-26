@@ -70,6 +70,10 @@ def find_signal_library(signal_id: str) -> tuple[dict, Path] | tuple[None, None]
     return None, None
 
 
+def prompts_dir() -> Path:
+    return site_yaml_path().parent / "signals" / "prompts"
+
+
 def custom_library_path() -> Path:
     """Path of the last signal library (where new signals are appended)."""
     raw = read_yaml(site_yaml_path())

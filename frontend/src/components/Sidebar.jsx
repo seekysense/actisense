@@ -27,10 +27,6 @@ export function Sidebar({
         <div className="site-card">
           <div className="site-brand">
             <img src="/logo.svg" className="site-brand-logo" alt="" />
-            <div>
-              <div className="site-brand-name">H4H Visual AI</div>
-              <div className="site-brand-tag">Beta</div>
-            </div>
           </div>
           <div className="site-select">
             <div>

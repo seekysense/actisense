@@ -24,5 +24,5 @@ export function useAlerts(maxAlerts = 50) {
     });
   }, [subscribe, maxAlerts]);
 
-  return { alerts, wsStatus: status };
+  return { alerts, wsStatus: status, subscribe };
 }

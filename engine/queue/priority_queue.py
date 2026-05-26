@@ -28,6 +28,7 @@ class ClipJob:
     recording_id: str
     enqueued_at: float   # time.monotonic() — usato per calcolo latency
     priority: int        # 1=critico … 5=informational
+    disk_id: str = ""    # Axis disk_id (es. "SD_DISK"), usato in CLIP_ON_CAMERA mode
 
     def __lt__(self, other: "ClipJob") -> bool:
         if self.priority == other.priority:
@@ -58,6 +59,7 @@ class ClipQueue:
         self._seq = itertools.count(1)    # garantisce unicità tiebreaker
         self._processed_count = 0
         self._dropped_count = 0
+        self._active_workers = 0
         self._latencies: list[float] = []
         self._stopped = False
         self._stop_event: asyncio.Event | None = None
@@ -121,10 +123,12 @@ class ClipQueue:
         """Ritorna metriche operative della coda."""
         avg = (sum(self._latencies) / len(self._latencies)) if self._latencies else 0.0
         return {
-            "depth": self.depth(),
+            "queue_depth": self.depth(),
             "processed_count": self._processed_count,
             "dropped_count": self._dropped_count,
             "avg_latency_ms": round(avg, 2),
+            "workers_busy": self._active_workers,
+            "max_workers": self._max_workers,
         }
 
     # ------------------------------------------------------------------
@@ -137,6 +141,7 @@ class ClipQueue:
             if job is None:          # sentinel → shutdown
                 self._queue.task_done()
                 break
+            self._active_workers += 1
             try:
                 await self._processor(job)
                 self._processed_count += 1
@@ -145,6 +150,7 @@ class ClipQueue:
             except Exception as exc:
                 log.error("worker_error", recording_id=job.recording_id, error=str(exc))
             finally:
+                self._active_workers -= 1
                 self._queue.task_done()
 
     async def _metrics_loop(self) -> None:

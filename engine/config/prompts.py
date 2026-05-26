@@ -5,11 +5,15 @@ I prompt devono funzionare in due modalità:
   - Temporale: frame etichettati in sezioni BEFORE / DETECTION WINDOW / AFTER
     (il preamble temporale è aggiunto automaticamente da LLMVisionClient)
 
-Quando i frame sono organizzati in sezioni temporali, il prompt deve indicare
-all'LLM di sfruttare i cambiamenti tra sezioni per distinguere stati transitori
-(persona si china e si rialza) da stati sostenuti (persona rimane a terra).
+Caricamento in ordine di priorità (crescente):
+  1. Prompts hardcoded in PROMPT_CATALOG (qui sotto) — fallback di emergenza
+  2. config/signals/prompts/*.yaml — sovrascrivono i hardcoded (ordine alfabetico)
 """
 from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
 
 PROMPT_CATALOG: dict[str, str] = {
 
@@ -393,5 +397,60 @@ Only respond with valid JSON.""",
 }
 
 
+DEFAULT_FINAL_EVAL_PROMPT = """\
+You have analyzed a video clip across multiple time windows. Each window independently produced a verdict:
+
+{verdicts_block}
+
+Based on ALL verdicts above, provide a final consolidated assessment of the entire clip.
+- Weight each verdict by its confidence score.
+- A transient signal visible in only one low-confidence window is weaker than one confirmed consistently across multiple windows.
+- If the event is sustained across most windows with high confidence, lean toward confirmed=True.
+- If only a minority of windows confirm the event and the rest have higher confidence denials, lean toward confirmed=False.
+
+Answer in JSON: {{"confirmed": true/false, "description": "consolidated reasoning across all windows, noting consistency or disagreement between them", "confidence": 0.0-1.0}}
+Only respond with valid JSON."""
+
+
+def _load_yaml_catalogs() -> tuple[dict[str, str], dict[str, str]]:
+    """Load prompt and final_eval catalogs from config/signals/prompts/*.yaml.
+
+    Supports two entry formats:
+      - String:  key: "prompt text"
+      - Dict:    key: {prompt: "...", final_eval: "..."}
+    """
+    prompts_dir = Path(__file__).parents[2] / "config" / "signals" / "prompts"
+    prompts: dict[str, str] = {}
+    final_evals: dict[str, str] = {}
+    if not prompts_dir.exists():
+        return prompts, final_evals
+    for f in sorted(prompts_dir.glob("*.yaml")):
+        try:
+            data = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+            for k, v in data.items():
+                if isinstance(v, str):
+                    prompts[k] = v
+                elif isinstance(v, dict):
+                    if isinstance(v.get("prompt"), str):
+                        prompts[k] = v["prompt"]
+                    if isinstance(v.get("final_eval"), str):
+                        final_evals[k] = v["final_eval"]
+        except Exception:
+            pass
+    return prompts, final_evals
+
+
+_yaml_prompts, _yaml_final_evals = _load_yaml_catalogs()
+
+# Merge: YAML prompts override hardcoded ones.
+PROMPT_CATALOG = {**PROMPT_CATALOG, **_yaml_prompts}
+FINAL_EVAL_CATALOG: dict[str, str] = _yaml_final_evals
+
+
 def get_prompt(key: str | None) -> str:
     return PROMPT_CATALOG.get(key or "generic", PROMPT_CATALOG["generic"])
+
+
+def get_final_eval_prompt(key: str | None) -> str:
+    """Return the final evaluation prompt for a given key, or the default."""
+    return FINAL_EVAL_CATALOG.get(key or "", DEFAULT_FINAL_EVAL_PROMPT)

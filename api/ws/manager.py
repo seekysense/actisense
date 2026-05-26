@@ -32,8 +32,13 @@ class ConnectionManager:
         try:
             while True:
                 try:
-                    alert = await asyncio.wait_for(q.get(), timeout=30.0)
-                    await ws.send_json({"type": "alert", "data": alert})
+                    msg = await asyncio.wait_for(q.get(), timeout=30.0)
+                    # Raw messages (engine_heartbeat, engine_event) already carry "type".
+                    # Legacy alert dicts don't — wrap them for backward-compat.
+                    if "type" in msg:
+                        await ws.send_json(msg)
+                    else:
+                        await ws.send_json({"type": "alert", "data": msg})
                 except asyncio.TimeoutError:
                     await ws.send_json({"type": "ping"})
         except Exception:

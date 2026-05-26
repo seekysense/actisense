@@ -23,7 +23,7 @@ areas:
       - id: cleaning_setup
       - id: eating_drinking
       - id: cabinet_opened
-      - id: cabinet_taken
+      - id: cabinet_item_taken
       - id: dog_presence
 
   - id: lobby

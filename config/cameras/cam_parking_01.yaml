@@ -3,6 +3,7 @@ name: Parking Lot Entrance
 area: parking_lot
 axis_ip: 10.46.67.10
 axis_event_id: ACC_Motion_B8A44FE235E4_1
+axis_channel: 1
 preprocessing:
   roi:
     enabled: true

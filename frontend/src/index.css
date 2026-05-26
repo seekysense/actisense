@@ -106,7 +106,7 @@ button { font-family: inherit; color: inherit; }
 .login-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
   margin-bottom: 28px;
 }
 .login-brand-dot {
@@ -162,13 +162,21 @@ button { font-family: inherit; color: inherit; }
 
 /* ── Sidebar ────────────────────────────────────────────────────────── */
 .site-card { padding: 18px 18px 14px; border-bottom: 1px solid var(--line); }
-.site-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.site-brand { display: flex; align-items: center; margin-bottom: 14px; }
 .site-brand-logo {
-  width: 28px; height: 28px; object-fit: contain; flex-shrink: 0;
-  filter: brightness(0);
+  object-fit: contain; flex-shrink: 0;
+}
+.site-brand .site-brand-logo {
+  width: 100%;
+  height: auto;
+  max-height: 56px;
+}
+.login-brand .site-brand-logo {
+  width: auto;
+  height: 48px;
 }
 html.dark .site-brand-logo {
-  filter: brightness(0) invert(1);
+  filter: drop-shadow(0 0 1.5px rgba(255,255,255,0.85));
 }
 .site-brand-name { font-weight: 600; font-size: 14px; letter-spacing: -.01em; }
 .site-brand-tag { font-size: 10.5px; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase; margin-top: 1px; }
@@ -845,7 +853,7 @@ html.dark .timebar-dim-l, html.dark .timebar-dim-r { background: rgba(21,20,15,.
 .setup-form-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; padding-top: 18px; border-top: 1px solid var(--line); }
 
 /* ─── ROI Editor ─── */
-.setup-roi-shell { display: grid; grid-template-columns: 1fr 360px; gap: 14px; height: calc(100vh - 64px - 56px - 48px); min-height: 560px; }
+.setup-roi-shell { display: grid; grid-template-columns: 1fr 360px; gap: 14px; flex: 1; min-height: 0; }
 .setup-roi-canvas-pane { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; overflow: hidden; }
 .setup-roi-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--bg); }
 .setup-mode-toggle { display: flex; background: var(--bg-2); padding: 2px; border-radius: 7px; border: 1px solid var(--line); font-size: 11.5px; }
