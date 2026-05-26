@@ -7,7 +7,6 @@ services:
       context: .
       dockerfile: docker/Dockerfile.api
     image: vsa-api:latest
-    platform: linux/arm64
     restart: unless-stopped
     env_file: .env.production
     environment:
@@ -30,11 +29,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile.engine
     image: vsa-engine:latest
-    platform: linux/arm64
     restart: unless-stopped
     env_file: .env.production
-    environment:
-      SITE_CONFIG_PATH: /app/config/site.yaml
     volumes:
       - lancedb_data:/data/lancedb
       - clips_data:/data/clips
@@ -50,7 +46,6 @@ services:
       context: .
       dockerfile: docker/Dockerfile.frontend
     image: vsa-frontend:latest
-    platform: linux/arm64
     restart: unless-stopped
     ports:
       - "80:80"

@@ -3,97 +3,99 @@ site:
   name: The Castelletto
   type: hotel
   signal_library:
-    - config/signals/hotel.yaml
-    - config/signals/custom.yaml
+  - config/signals/hotel.yaml
+  - config/signals/custom.yaml
   alert_cooldown_sec: 300
-
 areas:
-  - id: kitchen
-    name: Ager Patris Lounge
-    type: indoor_public
-    alert_cooldown_sec: 180
-    cameras: [cam_kitchen_01]
-    signals:
-      - id: person_on_ground
-      - id: smoking
-      - id: unattended_luggage
-      - id: person_count_stat
-      - id: working_with_pc
-      - id: fire_smoke
-      - id: cleaning_setup
-      - id: eating_drinking
-      - id: cabinet_opened
-      - id: cabinet_item_taken
-      - id: dog_presence
-
-  - id: lobby
-    name: Lobby Entrance
-    type: indoor_public
-    alert_cooldown_sec: 180
-    cameras: [cam_lobby_01]
-    signals:
-      - id: person_on_ground
-      - id: smoking
-      - id: unattended_luggage
-      - id: person_count_stat
-      - id: working_with_pc
-      - id: fire_smoke
-      - id: cleaning_setup
-      - id: eating_drinking
-      - id: dog_presence
-
-  - id: lockers
-    name: Hallway Lockers
-    type: indoor_restricted
-    alert_cooldown_sec: 300
-    cameras: [cam_hallway_01]
-    signals:
-      - id: locker_interaction
-
-  - id: parking_lot
-    name: Parking Lot
-    type: outdoor
-    alert_cooldown_sec: 300
-    cameras: [cam_parking_01]
-    signals:
-      - id: vehicle_transit
-      - id: vehicle_loading_unloading
-
-  - id: bike_storage
-    name: Bike Storage
-    type: indoor_restricted
-    alert_cooldown_sec: 300
-    cameras: [cam_bike_storage]
-    signals:
-      - id: bike_transit
-      - id: garage_door_open
-
-  - id: entrance
-    name: Entrance
-    type: indoor_public
-    alert_cooldown_sec: 180
-    cameras: [cam_entrance_01]
-    signals:
-      - id: person_on_ground
-      - id: smoking
-      - id: unattended_luggage
-        threshold_override: 0.44
-        escalation_llm_override: true
-        llm_prompt_key_override: unattended_bag_entrance
-      - id: person_count_stat
-      - id: working_with_pc
-      - id: fire_smoke
-      - id: cleaning_setup
-      - id: eating_drinking
-      - id: door_open
-        time_filter: {from: "23:00", to: "05:00"}
-        action_override: alarm
-        threshold_override: 0.40
-      - id: person_at_door
-      - id: luggage_arrival
-      - id: concierge_interaction
-      - id: checkin_desk
-      - id: person_waiting_bench
-      - id: tailgating
-      - id: door_forced
-      - id: dog_presence
+- id: kitchen
+  name: Ager Patris Lounge
+  type: indoor_public
+  alert_cooldown_sec: 180
+  cameras:
+  - cam_kitchen_01
+  signals:
+  - id: person_on_ground
+  - id: smoking
+  - id: unattended_luggage
+  - id: person_count_stat
+  - id: working_with_pc
+  - id: fire_smoke
+  - id: cleaning_setup
+  - id: eating_drinking
+  - id: cabinet_opened
+  - id: cabinet_item_taken
+  - id: dog_presence
+- id: lobby
+  name: Lobby Entrance
+  type: indoor_public
+  alert_cooldown_sec: 180
+  cameras:
+  - cam_lobby_01
+  signals:
+  - id: person_on_ground
+  - id: smoking
+  - id: unattended_luggage
+  - id: person_count_stat
+  - id: working_with_pc
+  - id: fire_smoke
+  - id: cleaning_setup
+  - id: eating_drinking
+  - id: dog_presence
+- id: lockers
+  name: Hallway Lockers
+  type: indoor_restricted
+  alert_cooldown_sec: 300
+  cameras:
+  - cam_hallway_01
+  signals:
+  - id: locker_interaction
+- id: parking_lot
+  name: Parking Lot
+  type: outdoor
+  alert_cooldown_sec: 300
+  cameras:
+  - cam_parking_01
+  signals:
+  - id: vehicle_transit
+  - id: vehicle_loading_unloading
+- id: bike_storage
+  name: Bike Storage
+  type: indoor_restricted
+  alert_cooldown_sec: 300
+  cameras:
+  - cam_bike_storage
+  signals:
+  - id: bike_transit
+  - id: garage_door_open
+- id: entrance
+  name: Entrance
+  type: indoor_public
+  alert_cooldown_sec: 180
+  cameras:
+  - cam_entrance_01
+  signals:
+  - id: person_on_ground
+  - id: smoking
+  - id: unattended_luggage
+    threshold_override: 0.44
+    escalation_llm_override: true
+    llm_prompt_key_override: unattended_bag_entrance
+  - id: person_count_stat
+  - id: working_with_pc
+  - id: fire_smoke
+  - id: cleaning_setup
+  - id: eating_drinking
+  - id: door_open
+    time_filter:
+      from: '23:00'
+      to: 05:00
+    action_override: alarm
+    threshold_override: 0.4
+  - id: person_at_door
+  - id: luggage_arrival
+  - id: concierge_interaction
+  - id: checkin_desk
+  - id: person_waiting_bench
+  - id: tailgating
+  - id: door_forced
+  - id: dog_presence
