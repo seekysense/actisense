@@ -127,5 +127,16 @@ async def get_clip(event_id: str, token: str | None = Query(default=None)):
     # Local mode: serve the file from disk
     path = Path(clip_path)
     if not path.exists():
-        raise HTTPException(status_code=404, detail=f"Clip file not found: {clip_path}")
+        # Try mapping host absolute paths to Docker container paths
+        # Host: /Users/andrea/Projects/Infinite/VisionSemanticAgent/data/clips/kitchen/...
+        # Container: /data/clips/kitchen/...
+        if "VisionSemanticAgent/data/clips/" in clip_path:
+            rel_path = clip_path.split("VisionSemanticAgent/data/clips/", 1)[1]
+            mapped_path = Path("/data/clips") / rel_path
+            if mapped_path.exists():
+                path = mapped_path
+            else:
+                raise HTTPException(status_code=404, detail=f"Clip file not found: {clip_path} (tried: {mapped_path})")
+        else:
+            raise HTTPException(status_code=404, detail=f"Clip file not found: {clip_path}")
     return FileResponse(path, media_type="video/mp4", filename=path.name)
