@@ -18,7 +18,7 @@ const FILTER_KINDS = ["all", "clip_ingested", "clip_processing", "clip_scored", 
 
 function fmtTime(ts) {
   if (!ts) return "--:--";
-  return new Date(ts * 1000).toLocaleTimeString("it-IT", {
+  return new Date(ts * 1000).toLocaleTimeString("en-GB", {
     hour: "2-digit", minute: "2-digit", second: "2-digit",
   });
 }
@@ -75,8 +75,8 @@ function SummaryBar({ queue, pendingSummary }) {
       ) : (
         <>
           <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-2)" }}>
-            {totalPending > 0 ? `${totalPending} clip${totalPending > 1 ? "s" : ""} in coda` : "In pari"}
-            {depth > 0 && ` · ${busy}/${max} worker${busy !== 1 ? "s" : ""} occupati`}
+            {totalPending > 0 ? `${totalPending} clip${totalPending > 1 ? "s" : ""} in queue` : "Up to date"}
+            {depth > 0 && ` · ${busy}/${max} worker${busy !== 1 ? "s" : ""} busy`}
             {etaMin > 0 && ` · ~${etaMin} min stimati`}
           </span>
         </>
@@ -100,7 +100,7 @@ function PendingPills({ pendingByArea, pendingByCamera }) {
           background: "var(--surface)", border: "1px solid var(--line)",
           borderRadius: 999, padding: "3px 10px", color: "var(--ink-2)",
         }}>
-          {area}: {n} da elaborare
+          {area}: {n} pending
         </span>
       ))}
       {camEntries.map(([cam, n]) => (
@@ -232,7 +232,7 @@ function ActiveJobs({ jobs }) {
           </span>
           <span style={{ color: "var(--ink-3)" }}>{j.area_id}</span>
           <span style={{ fontFamily: "'Geist Mono', monospace", color: "var(--ink-4)" }}>
-            in coda da {fmtSec(now - j.enqueued_at)}
+            queued {fmtSec(now - j.enqueued_at)} ago
           </span>
         </div>
       ))}
@@ -432,7 +432,7 @@ export function LivePanel({ subscribe, onClose }) {
           {/* Active jobs */}
           <div>
             <div className="drw-section-hd">
-              Elaborazioni attive
+              Active jobs
               <span style={{ marginLeft: 6, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
                 · {pendingSummary?.current_jobs?.length ?? 0}
               </span>

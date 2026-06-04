@@ -32,7 +32,7 @@ export function Events() {
             {data.map((e) => (
               <tr key={e.event_id} style={{ borderBottom: "1px solid var(--line)" }}>
                 <td style={{ padding: "8px 12px", fontFamily: "monospace", fontSize: 12 }}>
-                  {e.timestamp ? new Date(e.timestamp).toLocaleTimeString("it-IT") : "—"}
+                  {e.timestamp ? new Date(e.timestamp).toLocaleTimeString("en-GB") : "—"}
                 </td>
                 <td style={{ padding: "8px 12px" }}>{e.area_id}</td>
                 <td style={{ padding: "8px 12px" }}>{e.signal_id}</td>

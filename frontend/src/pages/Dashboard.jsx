@@ -16,7 +16,7 @@ function toAt(timestamp) {
 }
 
 function atStr(timestamp) {
-  return new Date(timestamp).toLocaleTimeString("it-IT", {
+  return new Date(timestamp).toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
   });
