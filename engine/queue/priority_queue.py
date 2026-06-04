@@ -65,6 +65,9 @@ class ClipQueue:
         self._stop_event: asyncio.Event | None = None
         self._worker_tasks: list[asyncio.Task] = []
         self._metrics_task: asyncio.Task | None = None
+        self._pending_by_camera: dict[str, int] = {}
+        self._pending_by_area: dict[str, int] = {}
+        self._current_jobs: dict[int, ClipJob] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -85,6 +88,8 @@ class ClipQueue:
                         max_depth=self._max_depth)
             return False
         self._queue.put_nowait((job.priority, next(self._seq), job))
+        self._pending_by_camera[job.camera_id] = self._pending_by_camera.get(job.camera_id, 0) + 1
+        self._pending_by_area[job.area_id] = self._pending_by_area.get(job.area_id, 0) + 1
         return True
 
     async def start(self) -> None:
@@ -129,6 +134,17 @@ class ClipQueue:
             "avg_latency_ms": round(avg, 2),
             "workers_busy": self._active_workers,
             "max_workers": self._max_workers,
+            "pending_by_camera": dict(self._pending_by_camera),
+            "pending_by_area": dict(self._pending_by_area),
+            "current_jobs": [
+                {
+                    "camera_id": j.camera_id,
+                    "area_id": j.area_id,
+                    "recording_id": j.recording_id,
+                    "enqueued_at": j.enqueued_at,
+                }
+                for j in self._current_jobs.values()
+            ],
         }
 
     # ------------------------------------------------------------------
@@ -142,15 +158,20 @@ class ClipQueue:
                 self._queue.task_done()
                 break
             self._active_workers += 1
+            worker_id = id(asyncio.current_task())
+            self._pending_by_camera[job.camera_id] = max(0, self._pending_by_camera.get(job.camera_id, 0) - 1)
+            self._pending_by_area[job.area_id] = max(0, self._pending_by_area.get(job.area_id, 0) - 1)
+            self._current_jobs[worker_id] = job
             try:
                 await self._processor(job)
                 self._processed_count += 1
-                latency = (time.monotonic() - job.enqueued_at) * 1000
+                latency = (time.time() - job.enqueued_at) * 1000
                 self._latencies.append(latency)
             except Exception as exc:
                 log.error("worker_error", recording_id=job.recording_id, error=str(exc))
             finally:
                 self._active_workers -= 1
+                self._current_jobs.pop(worker_id, None)
                 self._queue.task_done()
 
     async def _metrics_loop(self) -> None:

@@ -34,6 +34,9 @@ class HeartbeatIn(BaseModel):
     workers_busy: int
     max_workers: int
     cameras: list[CameraStatusIn] = []
+    pending_by_camera: dict[str, int] | None = None
+    pending_by_area: dict[str, int] | None = None
+    current_jobs: list[dict] | None = None
 
 
 class EngineEventIn(BaseModel):
@@ -71,3 +74,8 @@ async def engine_event(payload: EngineEventIn):
 @router.get("/live/status")
 async def get_live_status(_user: str = Depends(get_current_user)):
     return live_state.get_status()
+
+
+@router.get("/live/queue-detail")
+async def get_queue_detail(_user: str = Depends(get_current_user)):
+    return live_state.get_queue_detail()

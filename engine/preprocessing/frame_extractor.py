@@ -244,7 +244,20 @@ def extract_frames(
     try:
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         source_fps   = cap.get(cv2.CAP_PROP_FPS) or 25.0
-        clip_duration_sec = total_frames / source_fps
+        duration_from_meta = total_frames / source_fps if source_fps > 0 else 0.0
+
+        # Mitigazione VFR: se la durata da metadati è anomala, usa seek reale
+        clip_duration_sec = duration_from_meta
+        if duration_from_meta > 1800 or duration_from_meta <= 0:
+            # Seek all'ultimo frame e leggi il timestamp in ms
+            cap.set(cv2.CAP_PROP_POS_AVI_RATIO, 1)
+            real_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # rewind
+            if real_ms and real_ms > 0:
+                clip_duration_sec = real_ms / 1000.0
+                log.info("vfr_fallback_used", path=str(clip_path),
+                         duration_meta=round(duration_from_meta, 1),
+                         duration_real=round(clip_duration_sec, 1))
 
         # Quanti frame estrarre in base alla durata reale e all'fps richiesto
         n_extract = max(1, round(clip_duration_sec * cfg.embed_fps))
@@ -270,7 +283,7 @@ def extract_frames(
                     # Zona richiesta non presente su questa camera → skip
                     return FrameSet(frames_embedder=[], frames_embedder_fallback=[],
                                     frames_llm=[], frame_count=0,
-                                    clip_duration_sec=total_frames / source_fps,
+                                    clip_duration_sec=clip_duration_sec,
                                     zone_name=zone_name, embed_fps=cfg.embed_fps,
                                     embed_window_sec=cfg.embed_window_sec,
                                     embed_max_windows=cfg.embed_max_windows)

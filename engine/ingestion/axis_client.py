@@ -52,6 +52,10 @@ class AxisClient:
         default_pass: str,
         download_fps: int = 4,
         timeout: float = 30.0,
+        ffmpeg_preset: str = "ultrafast",
+        ffmpeg_crf: int = 32,
+        ffmpeg_threads: int = 1,
+        ffmpeg_normalize: bool = False,
     ) -> None:
         user = camera.axis_user or default_user
         pwd = camera.axis_pass or default_pass
@@ -59,6 +63,10 @@ class AxisClient:
         self._auth = httpx.DigestAuth(user, pwd)
         self._download_fps = download_fps
         self._timeout = timeout
+        self._ffmpeg_preset = ffmpeg_preset
+        self._ffmpeg_crf = ffmpeg_crf
+        self._ffmpeg_threads = ffmpeg_threads
+        self._ffmpeg_normalize = ffmpeg_normalize
 
     # ------------------------------------------------------------------
     # Public API
@@ -112,8 +120,14 @@ class AxisClient:
 
         await self._stream_to_file(url, params=params, dest=dest_path, timeout=120.0)
 
-        if self._download_fps and self._download_fps > 0:
-            dest_path = await _normalize_fps(dest_path, self._download_fps)
+        if self._ffmpeg_normalize and self._download_fps and self._download_fps > 0:
+            dest_path = await _normalize_fps(
+                dest_path,
+                self._download_fps,
+                preset=self._ffmpeg_preset,
+                crf=self._ffmpeg_crf,
+                threads=self._ffmpeg_threads,
+            )
 
         size_kb = dest_path.stat().st_size / 1024
         log.info("axis_download_complete", recording_id=recording.recording_id,
@@ -269,7 +283,13 @@ def _parse_people_count(text: str) -> int | None:
         return None
 
 
-async def _normalize_fps(path: Path, target_fps: int) -> Path:
+async def _normalize_fps(
+    path: Path,
+    target_fps: int,
+    preset: str = "ultrafast",
+    crf: int = 32,
+    threads: int = 1,
+) -> Path:
     """Normalizza FPS con ffmpeg in-place. Se ffmpeg assente, restituisce path invariato."""
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
@@ -278,13 +298,16 @@ async def _normalize_fps(path: Path, target_fps: int) -> Path:
 
     tmp = path.with_name(f"{path.stem}.tmp{path.suffix}")
     cmd = [
-        ffmpeg, "-y", "-i", str(path),
+        ffmpeg, "-y",
+        "-threads", str(threads),
+        "-i", str(path),
         "-map", "0:v:0",
         "-vf", f"fps={target_fps}",
         "-r", str(target_fps),
         "-c:v", "libx264",
-        "-preset", "veryfast",
-        "-crf", "23",
+        "-preset", preset,
+        "-crf", str(crf),
+        "-threads", str(threads),
         "-pix_fmt", "yuv420p",
         str(tmp),
     ]

@@ -17,6 +17,14 @@ services:
       - ./config:/app/config          # writable: Config CRUD API writes here
     networks:
       - vsa-internal
+    deploy:
+      resources:
+        limits:
+          cpus: '${DOCKER_API_CPU_LIMIT:-1.0}'
+          memory: '${DOCKER_API_MEM_LIMIT:-512M}'
+        reservations:
+          cpus: '${DOCKER_API_CPU_RES:-0.25}'
+          memory: '${DOCKER_API_MEM_RES:-128M}'
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -37,6 +45,14 @@ services:
       - ./config:/app/config          # read config; receive SIGHUP reloads
     networks:
       - vsa-internal
+    deploy:
+      resources:
+        limits:
+          cpus: '${DOCKER_ENGINE_CPU_LIMIT:-2.0}'
+          memory: '${DOCKER_ENGINE_MEM_LIMIT:-2G}'
+        reservations:
+          cpus: '${DOCKER_ENGINE_CPU_RES:-0.5}'
+          memory: '${DOCKER_ENGINE_MEM_RES:-512M}'
     depends_on:
       vsa-api:
         condition: service_healthy
@@ -51,6 +67,14 @@ services:
       - "80:80"
     networks:
       - vsa-internal
+    deploy:
+      resources:
+        limits:
+          cpus: '${DOCKER_FRONTEND_CPU_LIMIT:-0.25}'
+          memory: '${DOCKER_FRONTEND_MEM_LIMIT:-128M}'
+        reservations:
+          cpus: '${DOCKER_FRONTEND_CPU_RES:-0.05}'
+          memory: '${DOCKER_FRONTEND_MEM_RES:-32M}'
     depends_on:
       - vsa-api
 

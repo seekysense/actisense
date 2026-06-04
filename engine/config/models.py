@@ -145,6 +145,15 @@ class SiteConfig(BaseModel):
     embedding_api_key: str      # bearer token per servizio embedding autenticato (EMBEDDING_API_KEY)
     clip_on_camera: bool        # se True, il clip non viene salvato in locale; rimane sulla telecamera
 
+    # Startup lookback
+    axis_startup_lookback_hours: int
+
+    # FFMEG normalization settings
+    ffmpeg_preset: str
+    ffmpeg_crf: int
+    ffmpeg_threads: int
+    ffmpeg_normalize: bool
+
     def cameras_for_area(self, area_id: str) -> list[Camera]:
         """Restituisce Camera objects per le cam associate all'area."""
         area = self.areas[area_id]

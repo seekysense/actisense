@@ -127,7 +127,7 @@ function TopNav({ username, onLogout, onHome, breadcrumb }) {
           <span className="mi">arrow_back</span>Dashboard
         </button>
         <span className="setup-topnav-title">
-          Frame IQ
+          IQFrame
           <span className="setup-topnav-crumb">/ Setup{breadcrumb ? ` / ${breadcrumb}` : ''}</span>
         </span>
       </div>

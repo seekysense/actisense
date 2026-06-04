@@ -233,4 +233,9 @@ def load_config(site_yaml_path: Path) -> SiteConfig:
             or ""
         ),
         clip_on_camera=os.getenv("CLIP_ON_CAMERA", "false").lower() == "true",
+        axis_startup_lookback_hours=int(os.getenv("AXIS_STARTUP_LOOKBACK_HOURS", "0")),
+        ffmpeg_preset=os.getenv("FFMPEG_PRESET", "ultrafast"),
+        ffmpeg_crf=int(os.getenv("FFMPEG_CRF", "32")),
+        ffmpeg_threads=int(os.getenv("FFMPEG_THREADS", "1")),
+        ffmpeg_normalize=os.getenv("FFMPEG_NORMALIZE", "false").lower() == "true",
     )

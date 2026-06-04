@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLiveStatus } from "../hooks/useLiveStatus.js";
 
 const KIND_ICON = {
@@ -14,6 +14,8 @@ const ACTION_COLOR = {
   statistic: "var(--sev-stat)",
 };
 
+const FILTER_KINDS = ["all", "clip_ingested", "clip_processing", "clip_scored", "clip_dropped"];
+
 function fmtTime(ts) {
   if (!ts) return "--:--";
   return new Date(ts * 1000).toLocaleTimeString("it-IT", {
@@ -27,7 +29,91 @@ function fmtAgo(ts) {
   if (sec < 5)  return "just now";
   if (sec < 60) return `${sec}s ago`;
   const m = Math.floor(sec / 60);
-  return `${m}m ago`;
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  return `${h}h ago`;
+}
+
+function fmtSec(ms) {
+  const s = Math.floor(ms);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}m ${r}s`;
+}
+
+// ── Summary bar ──────────────────────────────────────────────────────────────
+
+function SummaryBar({ queue, pendingSummary }) {
+  const offline = !queue;
+  const busy = queue?.workers_busy ?? 0;
+  const max  = queue?.max_workers  ?? 0;
+  const depth = queue?.queue_depth ?? 0;
+  const avgMs = queue?.avg_latency_ms ?? 0;
+  const etaMin = (depth > 0 && busy > 0 && avgMs > 0)
+    ? Math.ceil((depth * avgMs / 1000) / busy / 60)
+    : 0;
+
+  const pendingArea = pendingSummary?.pending_by_area || {};
+  const totalPending = Object.values(pendingArea).reduce((a, b) => a + b, 0);
+
+  return (
+    <div style={{
+      background: offline ? "var(--surface)" : "var(--bg-2)",
+      border: "1px solid var(--line)",
+      borderRadius: "var(--radius)",
+      padding: "10px 14px",
+      display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+    }}>
+      <span className="mi" style={{ fontSize: 16, color: offline ? "var(--ink-4)" : "var(--accent)" }}>
+        {offline ? "cloud_off" : "memory"}
+      </span>
+      {offline ? (
+        <span style={{ fontSize: 12, color: "var(--ink-4)", fontStyle: "italic" }}>
+          Engine offline — no heartbeat received yet.
+        </span>
+      ) : (
+        <>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-2)" }}>
+            {totalPending > 0 ? `${totalPending} clip${totalPending > 1 ? "s" : ""} in coda` : "In pari"}
+            {depth > 0 && ` · ${busy}/${max} worker${busy !== 1 ? "s" : ""} occupati`}
+            {etaMin > 0 && ` · ~${etaMin} min stimati`}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Pills ────────────────────────────────────────────────────────────────────
+
+function PendingPills({ pendingByArea, pendingByCamera }) {
+  const areaEntries = Object.entries(pendingByArea || {}).filter(([, n]) => n > 0);
+  const camEntries  = Object.entries(pendingByCamera || {}).filter(([, n]) => n > 0);
+  if (!areaEntries.length && !camEntries.length) return null;
+
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {areaEntries.map(([area, n]) => (
+        <span key={area} style={{
+          fontSize: 11, fontWeight: 600,
+          background: "var(--surface)", border: "1px solid var(--line)",
+          borderRadius: 999, padding: "3px 10px", color: "var(--ink-2)",
+        }}>
+          {area}: {n} da elaborare
+        </span>
+      ))}
+      {camEntries.map(([cam, n]) => (
+        <span key={cam} style={{
+          fontSize: 11, fontWeight: 500,
+          background: "var(--bg-2)", border: "1px solid var(--line)",
+          borderRadius: 999, padding: "3px 10px", color: "var(--ink-3)",
+        }}>
+          {cam}: {n}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 // ── Queue status card ────────────────────────────────────────────────────────
@@ -121,6 +207,39 @@ function QueueCard({ queue }) {
   );
 }
 
+// ── Active jobs ──────────────────────────────────────────────────────────────
+
+function ActiveJobs({ jobs }) {
+  if (!jobs || jobs.length === 0) {
+    return (
+      <div style={{ fontSize: 12, color: "var(--ink-4)", fontStyle: "italic", padding: "4px 0" }}>
+        No active jobs.
+      </div>
+    );
+  }
+  const now = Date.now() / 1000;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {jobs.map((j, i) => (
+        <div key={`${j.recording_id}-${i}`} style={{
+          background: "var(--surface)", border: "1px solid var(--line)",
+          borderRadius: "var(--radius-sm)", padding: "8px 12px",
+          display: "flex", alignItems: "center", gap: 10, fontSize: 11,
+        }}>
+          <span className="mi" style={{ fontSize: 14, color: "var(--accent)" }}>play_circle</span>
+          <span style={{ fontFamily: "'Geist Mono', monospace", color: "var(--ink-2)", flex: 1 }}>
+            {j.camera_id}
+          </span>
+          <span style={{ color: "var(--ink-3)" }}>{j.area_id}</span>
+          <span style={{ fontFamily: "'Geist Mono', monospace", color: "var(--ink-4)" }}>
+            in coda da {fmtSec(now - j.enqueued_at)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Camera heartbeat list ────────────────────────────────────────────────────
 
 function CameraList({ cameras }) {
@@ -139,6 +258,7 @@ function CameraList({ cameras }) {
       {entries.map(([camId, stat]) => {
         const ok = stat.reachable !== false;
         const stale = stat.last_clip_at && (Date.now() / 1000 - stat.last_clip_at) > 300;
+        const pollStale = stat.last_poll_at && (Date.now() / 1000 - stat.last_poll_at) > 300;
         const statusColor = !ok ? "var(--sev-alarm)" : stale ? "var(--sev-notify)" : "var(--ok)";
 
         return (
@@ -156,7 +276,10 @@ function CameraList({ cameras }) {
               {camId}
             </span>
             <span style={{ fontSize: 11, color: "var(--ink-4)" }}>
-              {fmtAgo(stat.last_clip_at)}
+              poll {fmtAgo(stat.last_poll_at)}
+            </span>
+            <span style={{ fontSize: 11, color: "var(--ink-4)" }}>
+              clip {fmtAgo(stat.last_clip_at)}
             </span>
             {stat.clips_last_hour > 0 && (
               <span style={{
@@ -165,6 +288,11 @@ function CameraList({ cameras }) {
                 borderRadius: 999, padding: "1px 7px", color: "var(--ink-3)",
               }}>
                 {stat.clips_last_hour} clips/h
+              </span>
+            )}
+            {pollStale && (
+              <span style={{ fontSize: 10, color: "var(--sev-alarm)", fontWeight: 600 }}>
+                ⚠️ poll vecchio
               </span>
             )}
           </div>
@@ -218,11 +346,9 @@ function ActivityRow({ ev }) {
 
 function ActivityLog({ activity }) {
   const endRef = useRef(null);
+  const [filter, setFilter] = useState("all");
 
-  // Auto-scroll to top on new entries (list is prepended)
-  useEffect(() => {
-    // no-op: newest is already at top
-  }, [activity]);
+  const filtered = filter === "all" ? activity : activity.filter((ev) => ev.kind === filter);
 
   if (activity.length === 0) {
     return (
@@ -234,7 +360,24 @@ function ActivityLog({ activity }) {
 
   return (
     <div>
-      {activity.map((ev, i) => (
+      <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+        {FILTER_KINDS.map((k) => (
+          <button
+            key={k}
+            onClick={() => setFilter(k)}
+            style={{
+              fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em",
+              border: "1px solid var(--line)", borderRadius: 999,
+              padding: "2px 8px", cursor: "pointer",
+              background: filter === k ? "var(--accent)" : "var(--bg-2)",
+              color: filter === k ? "#fff" : "var(--ink-3)",
+            }}
+          >
+            {k.replace(/_/g, " ")}
+          </button>
+        ))}
+      </div>
+      {filtered.map((ev, i) => (
         <ActivityRow key={`${ev.ts}-${i}`} ev={ev} />
       ))}
       <div ref={endRef} />
@@ -245,7 +388,7 @@ function ActivityLog({ activity }) {
 // ── Main LivePanel ───────────────────────────────────────────────────────────
 
 export function LivePanel({ subscribe, onClose }) {
-  const { queue, cameras, activity } = useLiveStatus(subscribe, true);
+  const { queue, cameras, activity, pendingSummary } = useLiveStatus(subscribe, true);
 
   return (
     <>
@@ -271,10 +414,30 @@ export function LivePanel({ subscribe, onClose }) {
         {/* Body */}
         <div className="drw-body" style={{ gap: 16 }}>
 
+          {/* Summary */}
+          <SummaryBar queue={queue} pendingSummary={pendingSummary} />
+
+          {/* Pending pills */}
+          <PendingPills
+            pendingByArea={pendingSummary?.pending_by_area}
+            pendingByCamera={pendingSummary?.pending_by_camera}
+          />
+
           {/* Queue */}
           <div>
             <div className="drw-section-hd">Queue</div>
             <QueueCard queue={queue} />
+          </div>
+
+          {/* Active jobs */}
+          <div>
+            <div className="drw-section-hd">
+              Elaborazioni attive
+              <span style={{ marginLeft: 6, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+                · {pendingSummary?.current_jobs?.length ?? 0}
+              </span>
+            </div>
+            <ActiveJobs jobs={pendingSummary?.current_jobs} />
           </div>
 
           {/* Cameras */}

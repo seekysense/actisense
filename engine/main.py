@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import functools
 import os
 import signal
 import time
@@ -47,7 +48,7 @@ def _resolve_webhook(area_cfg, cfg, default_url: str) -> str:
 # process_clip — called by ClipQueue worker for each job
 # ---------------------------------------------------------------------------
 
-def _make_processor(state: _State, embedding_client, router, clip_managers: dict):
+def _make_processor(state: _State, embedding_client, router, clip_managers: dict, clip_store):
     """Returns a ClipJob processor closure with access to shared state."""
     from engine.embedding.client import EmbeddingServiceUnavailable
     from engine.preprocessing.frame_extractor import extract_frames
@@ -87,10 +88,14 @@ def _make_processor(state: _State, embedding_client, router, clip_managers: dict
 
             all_scored = []
             default_frame_set = None
+            _loop = asyncio.get_event_loop()
 
             for zone_name, signal_pairs in zone_groups.items():
-                frame_set = extract_frames(job.clip_path, camera, cfg,
-                                           zone_name=zone_name)
+                frame_set = await _loop.run_in_executor(
+                    None,
+                    functools.partial(extract_frames, job.clip_path, camera, cfg,
+                                      zone_name=zone_name),
+                )
                 if default_frame_set is None and frame_set.frame_count > 0:
                     default_frame_set = frame_set
                 scored = await state.evaluator.evaluate_windowed(
@@ -129,6 +134,8 @@ def _make_processor(state: _State, embedding_client, router, clip_managers: dict
                       error=str(exc), recording_id=job.recording_id,
                       exc_info=True)
         finally:
+            if cfg.clip_on_camera and clip_store:
+                clip_store.cleanup_temp(job.clip_path)
             cm = clip_managers.get(job.camera_id)
             if cm:
                 cm.mark_processed(job.recording_id)
@@ -142,16 +149,25 @@ def _make_processor(state: _State, embedding_client, router, clip_managers: dict
 
 async def poll_camera(axis_client, clip_manager, queue, state: _State,
                       stop_event: asyncio.Event,
-                      camera_live_stats: dict) -> None:
+                      camera_live_stats: dict,
+                      startup_lookback_hours: int = 0) -> None:
     from engine.telemetry.live_publisher import emit
 
     last_cleanup = time.monotonic()
+    is_first_poll = True
 
     while not stop_event.is_set():
         cfg = state.cfg
         try:
+            if is_first_poll and startup_lookback_hours > 0:
+                lookback_sec = startup_lookback_hours * 3600
+                is_first_poll = False
+                log.info("startup_lookback", hours=startup_lookback_hours,
+                         lookback_sec=lookback_sec, camera_id=axis_client._camera.id)
+            else:
+                lookback_sec = cfg.axis_poll_interval_sec * 3
             clips = await clip_manager.fetch_new_clips(
-                axis_client, event_id=None, lookback_sec=cfg.axis_poll_interval_sec * 3
+                axis_client, event_id=None, lookback_sec=lookback_sec
             )
             for clip_path, disk_id in clips:
                 cam_id   = axis_client._camera.id
@@ -164,14 +180,15 @@ async def poll_camera(axis_client, clip_manager, queue, state: _State,
                     area_id=area_id,
                     recording_id=clip_path.stem,
                     disk_id=disk_id,
-                    enqueued_at=time.monotonic(),
+                    enqueued_at=time.time(),
                     priority=priority,
                 )
                 enqueued = await queue.enqueue(job)
                 now = time.time()
-                stats = camera_live_stats.setdefault(cam_id, {"clips_last_hour": 0, "reachable": True})
+                stats = camera_live_stats.setdefault(cam_id, {"clips_last_hour": 0, "reachable": True, "last_poll_at": now})
                 stats["last_clip_at"] = now
                 stats["reachable"] = True
+                stats["last_poll_at"] = now
                 if enqueued:
                     stats["clips_last_hour"] = stats.get("clips_last_hour", 0) + 1
                     emit("clip_ingested",
@@ -187,7 +204,9 @@ async def poll_camera(axis_client, clip_manager, queue, state: _State,
 
         except Exception as exc:
             cam_id = axis_client._camera.id
-            camera_live_stats.setdefault(cam_id, {})["reachable"] = False
+            stats = camera_live_stats.setdefault(cam_id, {"clips_last_hour": 0, "reachable": False, "last_poll_at": time.time()})
+            stats["reachable"] = False
+            stats["last_poll_at"] = time.time()
             log.warning("poll_camera_error",
                         camera_id=cam_id, error=str(exc))
 
@@ -307,7 +326,7 @@ async def main(config_path: Path, with_api: bool = False) -> None:
         )
 
     # 8. Queue
-    processor = _make_processor(state, embedding_client, router, clip_managers)
+    processor = _make_processor(state, embedding_client, router, clip_managers, clip_store)
     queue     = ClipQueue(
         max_workers=cfg.queue_max_workers,
         max_depth=cfg.queue_max_depth,
@@ -386,6 +405,10 @@ async def main(config_path: Path, with_api: bool = False) -> None:
                 default_user=cfg.axis_default_user,
                 default_pass=cfg.axis_default_pass,
                 download_fps=int(os.getenv("AXIS_DOWNLOAD_FPS", "4")),
+                ffmpeg_preset=cfg.ffmpeg_preset,
+                ffmpeg_crf=cfg.ffmpeg_crf,
+                ffmpeg_threads=cfg.ffmpeg_threads,
+                ffmpeg_normalize=cfg.ffmpeg_normalize,
             )
             axis_clients.append(axis_client)
             task = asyncio.create_task(
@@ -396,6 +419,7 @@ async def main(config_path: Path, with_api: bool = False) -> None:
                     state,
                     stop_event,
                     camera_live_stats,
+                    startup_lookback_hours=cfg.axis_startup_lookback_hours,
                 )
             )
             poll_tasks.append(task)
