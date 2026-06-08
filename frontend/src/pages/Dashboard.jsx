@@ -355,14 +355,6 @@ export function Dashboard({ username, onLogout }) {
         />
 
         <div className="content">
-          <div className="grid-head">
-            <div className="grid-head-title">
-              Areas <span className="meta">· {visibleAreas.length} visible</span>
-            </div>
-            <div className="grid-head-view">
-              <div className="view-btn on">Grid</div>
-            </div>
-          </div>
 
           {visibleAreas.length === 0 ? (
             <div className="empty-state">No areas configured. Check your site.yaml.</div>

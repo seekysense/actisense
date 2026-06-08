@@ -224,6 +224,7 @@ def load_config(site_yaml_path: Path) -> SiteConfig:
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         llm_thinking=os.getenv("LLM_THINKING", "false").lower() == "true",
         llm_use_reasoning=os.getenv("LLM_USEREASONING", "false").lower() == "true",
+        llm_smartsearch_thinking=os.getenv("LLM_SMARTSEARCH_THINKING", "false").lower() == "true",
         embedding_model=os.getenv("EMBEDDING_MODEL", ""),
         emb_context_window=int(os.getenv("EMB_CONTEXT_WINDOW", "8000")),
         embed_fallback_size=int(os.getenv("EMBED_FALLBACK_SIZE", "128")),

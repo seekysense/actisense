@@ -226,7 +226,14 @@ class PromptDetail(BaseModel):
     final_eval: str | None = Field(None, description="Final aggregation prompt text. Null uses the default.")
 
 
+class PromptCreate(BaseModel):
+    key: str = Field(description="Unique prompt catalog key (lowercase, a-z 0-9 _ only)")
+    prompt: str = Field(description="Full prompt text for per-window LLM calls")
+    final_eval: str | None = Field(None, description="Optional final aggregation prompt")
+
+
 class PromptPatch(BaseModel):
+    prompt: str | None = Field(None, description="Full prompt text for per-window LLM calls. If omitted, the existing prompt is kept.")
     final_eval: str | None = Field(None, description="Final aggregation prompt text. Set to null to remove and use the default.")
 
 

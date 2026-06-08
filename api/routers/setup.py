@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, s
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ..deps import get_config_api_key
+from ..deps import require_admin
 from ..services.wizard_store import (
     delete_clip,
     new_clip_id,
@@ -63,7 +63,7 @@ class SuggestPhraseResponse(BaseModel):
 )
 async def suggest_phrase(
     body: SuggestPhraseRequest,
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     cfg = _cfg()
     zones_text = ", ".join(body.zones) if body.zones else "all visible areas"
@@ -138,7 +138,7 @@ async def suggest_phrase(
 async def upload_clip(
     label: str = Form(..., description="'positive' or 'negative'"),
     file: UploadFile = File(...),
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     clip_id = new_clip_id()
     data = await file.read()
@@ -190,7 +190,7 @@ class CaptureClipRequest(BaseModel):
 )
 async def capture_clip(
     body: CaptureClipRequest,
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     from engine.ingestion.axis_client import AxisClient, CameraOfflineError
     cfg = _cfg()
@@ -266,7 +266,7 @@ class CalibrateRequest(BaseModel):
 )
 async def calibrate(
     body: CalibrateRequest,
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     cfg = _cfg()
 
@@ -414,7 +414,7 @@ async def _get_llm_recommendation(cfg, phrase, threshold, all_scores, false_posi
 )
 async def delete_wizard_clip(
     clip_id: str,
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     found = delete_clip(clip_id)
     if not found:

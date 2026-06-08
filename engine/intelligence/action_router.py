@@ -234,6 +234,12 @@ class ActionRouter:
                                      area_id=area_id, score=round(scored.score, 4),
                                      description=llm_verdict.description,
                                      confidence=round(llm_verdict.confidence, 3))
+                            from engine.telemetry.live_publisher import emit as _emit
+                            _emit("llm_suppressed",
+                                  camera_id=clip_job.camera_id if clip_job else None,
+                                  area_id=area_id, signal_id=scored.signal_id,
+                                  score=round(scored.score, 4),
+                                  detail=(llm_verdict.description or "")[:120])
                         else:
                             log.warning("llm_unavailable_skip", signal_id=scored.signal_id,
                                         area_id=area_id, score=round(scored.score, 4))
@@ -295,6 +301,11 @@ class ActionRouter:
                      action=scored.action, score=scored.score,
                      area_id=area_id, llm_escalation=llm_esc,
                      webhook_url=webhook_url)
+            from engine.telemetry.live_publisher import emit as _emit
+            _emit("action_fired",
+                  camera_id=clip_job.camera_id if clip_job else None,
+                  area_id=area_id, signal_id=scored.signal_id,
+                  score=round(scored.score, 4), action=scored.action)
             results.append(ActionResult(
                 signal_id=scored.signal_id,
                 action=scored.action,

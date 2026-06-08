@@ -144,6 +144,7 @@ function TopNav({ username, onLogout, onHome, breadcrumb }) {
 
 // ─── Landing ─────────────────────────────────────────────────────────────────
 function Landing({ camerasCount, signalsCount, onPick }) {
+  const navigate = useNavigate();
   return (
     <div className="setup-page">
       <div className="setup-breadcrumb"><span className="current">Setup</span></div>
@@ -176,8 +177,16 @@ function Landing({ camerasCount, signalsCount, onPick }) {
           <div className="setup-lc-icon"><span className="mi">settings</span></div>
           <h3>Site settings</h3>
           <p>Edit site metadata and review area camera assignments.</p>
-          <div className="setup-lc-foot">
+          <div className="setup-lc-foot" style={{ justifyContent: 'flex-end' }}>
             <button className="tb-btn">Open settings<span className="mi">arrow_forward</span></button>
+          </div>
+        </div>
+        <div className="setup-landing-card" onClick={() => navigate('/logs')}>
+          <div className="setup-lc-icon"><span className="mi">terminal</span></div>
+          <h3>Engine Logs</h3>
+          <p>Monitor recent processing activity: clip scoring, LLM decisions, camera polling errors, and suppressed events — updated every 10 seconds.</p>
+          <div className="setup-lc-foot" style={{ justifyContent: 'flex-end' }}>
+            <button className="tb-btn">View Logs<span className="mi">arrow_forward</span></button>
           </div>
         </div>
       </div>

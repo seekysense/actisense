@@ -52,6 +52,8 @@ class ClipManager:
         if not new:
             return []
 
+        from engine.telemetry.live_publisher import emit as _emit
+
         downloaded: list[tuple[Path, str]] = []
         for rec in new:
             # Marca come vista prima del download per evitare doppi tentativi paralleli
@@ -59,9 +61,16 @@ class ClipManager:
             try:
                 path = await axis_client.download_recording(rec, self._temp_dir)
                 downloaded.append((path, rec.disk_id))
+                _emit("clip_downloaded",
+                      camera_id=axis_client._camera.id,
+                      recording_id=rec.recording_id)
             except Exception as exc:
                 log.warning("clip_download_failed", recording_id=rec.recording_id,
                             error=str(exc))
+                _emit("clip_error",
+                      camera_id=axis_client._camera.id,
+                      recording_id=rec.recording_id,
+                      detail=f"download failed: {str(exc)[:80]}")
 
         log.info("clips_fetched", new=len(downloaded), skipped=len(recordings) - len(new))
         return downloaded

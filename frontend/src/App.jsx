@@ -6,6 +6,7 @@ import { Events } from "./pages/Events.jsx";
 import { Config } from "./pages/Config.jsx";
 import { Setup } from "./pages/Setup.jsx";
 import SiteSettings from "./pages/SiteSettings.jsx";
+import Logs from "./pages/Logs.jsx";
 import "./index.css";
 
 function NavBar({ username, onLogout }) {
@@ -84,6 +85,14 @@ export function App() {
           element={
             <RequireAuth token={token}>
               <SiteSettings />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/logs"
+          element={
+            <RequireAuth token={token}>
+              <Logs />
             </RequireAuth>
           }
         />

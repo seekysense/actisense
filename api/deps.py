@@ -58,3 +58,32 @@ def get_config_api_key(
     except jwt.PyJWTError:
         pass
     raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+def get_current_user_info(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> dict:
+    """Return {'sub': username, 'role': role} from a valid JWT."""
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return {"sub": payload.get("sub", ""), "role": payload.get("role", "user")}
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+def require_admin(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+) -> str:
+    """Validate Bearer token and require admin role."""
+    token = credentials.credentials
+    if CONFIG_API_KEY and token == CONFIG_API_KEY:
+        return "api-key-user"
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        role = payload.get("role")
+        if role != "admin":
+            raise HTTPException(status_code=403, detail="Admin role required")
+        return payload.get("sub", "")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")

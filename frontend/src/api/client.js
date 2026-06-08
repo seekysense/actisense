@@ -66,4 +66,11 @@ export const api = {
   async getLiveStatus() {
     return request("/api/live/status");
   },
+
+  async getLogs({ limit = 100, kind } = {}) {
+    const params = new URLSearchParams();
+    if (limit) params.set("limit", limit);
+    if (kind) params.set("kind", kind);
+    return request(`/api/logs?${params}`);
+  },
 };

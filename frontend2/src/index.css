@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.55; transform: scale(1.25); }
+  }
+
+  :root {
+    --bg:               #F9FAFB;
+    --surface:          #FFFFFF;
+    --bg-2:             #F3F4F6;
+    --line:             #E5E7EB;
+    --line-2:           #D1D5DB;
+    --ink:              #111827;
+    --ink-1:            #1F2937;
+    --ink-2:            #374151;
+    --ink-3:            #6B7280;
+    --ink-4:            #9CA3AF;
+    --accent:           #18181b;
+    --accent-soft:      #EFF6FF;
+    --accent-ink:       #18181b;
+    --ok:               #10B981;
+
+    /* Palette stati semantici */
+    --sev-alarm:        #EF4444;
+    --sev-alarm-bg:     #FEF2F2;
+    --sev-notify:       #F59E0B;
+    --sev-notify-bg:    #FFFBEB;
+    --sev-statistic:    #6B7280;
+    --sev-statistic-bg: #F9FAFB;
+    --sev-ok:           #10B981;
+    --sev-ok-bg:        #ECFDF5;
+    --sev-offline:      #9CA3AF;
+
+    /* Radius */
+    --r-sm:   4px;
+    --r-md:   8px;
+    --r-lg:   12px;
+    --r-pill: 999px;
+
+    /* Shadows */
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.10), 0 4px 6px -4px rgba(0,0,0,.08);
+    --shadow-xl: 0 20px 25px -5px rgba(0,0,0,.10), 0 8px 10px -6px rgba(0,0,0,.08);
+
+    /* Typography */
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-mono: 'Geist Mono', 'Fira Code', ui-monospace, monospace;
+    --ease: cubic-bezier(.4,0,.2,1);
+  }
+
+  * {
+    border-color: var(--line);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}

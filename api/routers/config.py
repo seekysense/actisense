@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 
-from ..deps import get_config_api_key, get_current_user
+from ..deps import get_config_api_key, get_current_user, require_admin
 from ..schemas.config import (
     AreaPatch,
     AreaRead,
@@ -23,6 +23,7 @@ from ..schemas.config import (
     CameraRead,
     ErrorResponse,
     MessageResponse,
+    PromptCreate,
     PromptDetail,
     PromptPatch,
     PromptRead,
@@ -107,6 +108,17 @@ async def get_config_summary(_user: str = Depends(get_current_user)):
             }
             for s in cfg.signals.values()
         ],
+        "cameras": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "area": getattr(c, "area", None),
+                "axis_ip": getattr(c, "axis_ip", None),
+                "axis_event_id": getattr(c, "axis_event_id", None),
+                "native_analytics": getattr(c, "native_analytics", False),
+            }
+            for c in cfg.cameras.values()
+        ],
     }
 
 
@@ -135,7 +147,7 @@ async def get_site(_: str = Depends(get_config_api_key)):
     responses={**_401, 422: {"model": ErrorResponse, "description": "Validation error"}},
     tags=["config-site"],
 )
-async def patch_site(body: SitePatch, _: str = Depends(get_config_api_key)):
+async def patch_site(body: SitePatch, _: str = Depends(require_admin)):
     data = read_yaml(site_yaml_path())
     for field, val in body.model_dump(exclude_none=True).items():
         data["site"][field] = val
@@ -242,23 +254,85 @@ async def get_prompt_detail(
 async def patch_prompt(
     body: PromptPatch,
     key: str = Path(description="Prompt catalog key"),
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     data, f = _find_prompt_in_files(key)
     if data is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Prompt key '{key}' not found")
 
-    prompt_text, _ = _parse_prompt_entry(data[key])
-    if body.final_eval:
-        data[key] = {"prompt": prompt_text, "final_eval": body.final_eval}
-        final_eval_out = body.final_eval
+    current_prompt, current_final_eval = _parse_prompt_entry(data[key])
+    new_prompt = body.prompt if body.prompt is not None else current_prompt
+    # final_eval field: None in body means "keep existing"; use sentinel check
+    patch = body.model_dump(exclude_unset=True)
+    if "final_eval" in patch:
+        new_final_eval = body.final_eval  # explicit set (can be None to remove)
     else:
-        # Revert to plain string, removing final_eval
-        data[key] = prompt_text
-        final_eval_out = None
+        new_final_eval = current_final_eval
+
+    if new_final_eval:
+        data[key] = {"prompt": new_prompt, "final_eval": new_final_eval}
+    else:
+        data[key] = new_prompt
 
     write_yaml(f, data)
-    return {"key": key, "file": f.name, "prompt": prompt_text, "final_eval": final_eval_out}
+    return {"key": key, "file": f.name, "prompt": new_prompt, "final_eval": new_final_eval}
+
+
+@router.post(
+    "/prompts",
+    response_model=PromptDetail,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new prompt",
+    description="Creates a new prompt entry in custom.yaml. Returns 409 if the key already exists.",
+    responses={
+        **_401,
+        409: {"model": ErrorResponse, "description": "Key already exists"},
+        422: {"model": ErrorResponse, "description": "Validation error"},
+    },
+    tags=["config-signals"],
+)
+async def create_prompt(body: PromptCreate, _: str = Depends(require_admin)):
+    import yaml as _yaml
+    import re
+    if not re.match(r'^[a-z0-9_]+$', body.key):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Key must contain only lowercase letters, digits and underscores")
+    # Check key not already taken across all files
+    existing, _ = _find_prompt_in_files(body.key)
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            detail=f"Prompt key '{body.key}' already exists")
+    target = prompts_dir() / "custom.yaml"
+    try:
+        data = _yaml.safe_load(target.read_text(encoding="utf-8")) or {} if target.exists() else {}
+    except Exception:
+        data = {}
+    # Strip top-level comments by re-reading as raw dict; write_yaml handles serialisation
+    if body.final_eval:
+        data[body.key] = {"prompt": body.prompt, "final_eval": body.final_eval}
+    else:
+        data[body.key] = body.prompt
+    write_yaml(target, data)
+    return {"key": body.key, "file": "custom.yaml", "prompt": body.prompt, "final_eval": body.final_eval}
+
+
+@router.delete(
+    "/prompts/{key}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a prompt",
+    description="Removes the prompt entry from its YAML file.",
+    responses={**_401, **_404},
+    tags=["config-signals"],
+)
+async def delete_prompt(
+    key: str = Path(description="Prompt catalog key"),
+    _: str = Depends(require_admin),
+):
+    data, f = _find_prompt_in_files(key)
+    if data is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"Prompt key '{key}' not found")
+    del data[key]
+    write_yaml(f, data)
 
 
 # ---------------------------------------------------------------------------
@@ -309,7 +383,7 @@ async def get_signal(
     },
     tags=["config-signals"],
 )
-async def create_signal(body: SignalCreate, _: str = Depends(get_config_api_key)):
+async def create_signal(body: SignalCreate, _: str = Depends(require_admin)):
     cfg = _cfg()
     if body.id in cfg.signals:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=f"Signal '{body.id}' already exists")
@@ -331,7 +405,7 @@ async def create_signal(body: SignalCreate, _: str = Depends(get_config_api_key)
 async def patch_signal(
     body: SignalPatch,
     signal_id: str = Path(description="Signal ID to update"),
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     sig_dict, lib_path = find_signal_library(signal_id)
     if lib_path is None:
@@ -358,7 +432,7 @@ async def patch_signal(
 )
 async def delete_signal(
     signal_id: str = Path(description="Signal ID to delete"),
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     _, lib_path = find_signal_library(signal_id)
     if lib_path is None:
@@ -413,7 +487,7 @@ async def get_area(
 async def patch_area(
     body: AreaPatch,
     area_id: str = Path(description="Area ID to update"),
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     data = read_yaml(site_yaml_path())
     areas = data.get("areas", [])
@@ -459,7 +533,7 @@ async def list_area_signals(
 async def add_area_signal(
     body: AreaSignalOverride,
     area_id: str = Path(description="Area ID"),
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     data = read_yaml(site_yaml_path())
     areas = data.get("areas", [])
@@ -488,7 +562,7 @@ async def patch_area_signal(
     body: AreaSignalOverridePatch,
     area_id: str = Path(description="Area ID"),
     signal_id: str = Path(description="Signal ID to update"),
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     data = read_yaml(site_yaml_path())
     areas = data.get("areas", [])
@@ -522,7 +596,7 @@ async def patch_area_signal(
 async def remove_area_signal(
     area_id: str = Path(description="Area ID"),
     signal_id: str = Path(description="Signal ID to remove"),
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     data = read_yaml(site_yaml_path())
     areas = data.get("areas", [])
@@ -596,7 +670,7 @@ async def get_camera(
     },
     tags=["config-cameras"],
 )
-async def create_camera(body: CameraCreate, _: str = Depends(get_config_api_key)):
+async def create_camera(body: CameraCreate, _: str = Depends(require_admin)):
     try:
         validate_camera_id(body.id)
     except ValueError:
@@ -643,7 +717,7 @@ async def create_camera(body: CameraCreate, _: str = Depends(get_config_api_key)
 )
 async def delete_camera(
     camera_id: str = Path(description="Camera ID"),
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     try:
         validate_camera_id(camera_id)
@@ -711,7 +785,7 @@ async def camera_snapshot(
 async def patch_camera(
     body: CameraPatch,
     camera_id: str = Path(description="Camera ID"),
-    _: str = Depends(get_config_api_key),
+    _: str = Depends(require_admin),
 ):
     try:
         validate_camera_id(camera_id)

@@ -60,8 +60,8 @@ services:
   vsa-frontend:
     build:
       context: .
-      dockerfile: docker/Dockerfile.frontend
-    image: vsa-frontend:latest
+      dockerfile: docker/Dockerfile.frontend2
+    image: vsa-frontend2:latest
     restart: unless-stopped
     ports:
       - "80:80"

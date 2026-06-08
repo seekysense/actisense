@@ -137,8 +137,9 @@ class SiteConfig(BaseModel):
     queue_max_workers: int
     queue_max_depth: int
     log_level: str
-    llm_thinking: bool          # enable_thinking passato a extra_body in chat/completions
-    llm_use_reasoning: bool     # usa /v1/responses con enable_thinking=true (LLM_USEREASONING)
+    llm_thinking: bool              # enable_thinking per engine vision analysis (LLM_THINKING)
+    llm_use_reasoning: bool         # usa /v1/responses con enable_thinking=true (LLM_USEREASONING)
+    llm_smartsearch_thinking: bool  # enable_thinking per smart search NL extraction (LLM_SMARTSEARCH_THINKING)
     embedding_model: str        # nome modello embedding (es. Galene/Embedding-Vision)
     emb_context_window: int     # context window del modello embedding (token)
     embed_fallback_size: int    # risoluzione fallback (px) quando i frame superano emb_context_window

@@ -27,6 +27,7 @@ structlog>=24.0
 # Auth
 PyJWT>=2.8
 python-multipart>=0.0.9
+bcrypt>=4.0
 
 # Dev / test
 pytest>=8.0

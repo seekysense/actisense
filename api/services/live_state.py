@@ -35,6 +35,9 @@ class LiveState:
             "server_ts": time.time(),
         }
 
+    def get_activity(self, limit: int = 100) -> list[dict]:
+        return list(self._activity)[:limit]
+
     def get_queue_detail(self) -> dict:
         return {
             "pending_by_camera": self._pending_summary.get("pending_by_camera", {}),

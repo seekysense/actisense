@@ -129,10 +129,15 @@ def _make_processor(state: _State, embedding_client, router, clip_managers: dict
         except EmbeddingServiceUnavailable as exc:
             log.error("embedding_unavailable",
                       error=str(exc), recording_id=job.recording_id)
+            emit("clip_error", camera_id=job.camera_id, area_id=job.area_id,
+                 recording_id=job.recording_id,
+                 detail=f"embedding unavailable: {str(exc)[:80]}")
         except Exception as exc:
             log.error("process_clip_failed",
                       error=str(exc), recording_id=job.recording_id,
                       exc_info=True)
+            emit("clip_error", camera_id=job.camera_id, area_id=job.area_id,
+                 recording_id=job.recording_id, detail=str(exc)[:100])
         finally:
             if cfg.clip_on_camera and clip_store:
                 clip_store.cleanup_temp(job.clip_path)
